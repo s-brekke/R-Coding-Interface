@@ -9,17 +9,17 @@
 #
 # README:
 # Before you start coding, you have to decide if you want to use MariaDB/MySQL or SQLite. MariaDB/MySQL runs on
-# a centralized server, while SQLite stores the data locally in the "data" folder (database.db).
+# a centralized server, while SQLite stores the data locally.
 # 
 # You will need to install the SQL server of your choice on your computer/server if this is not already done.
-#
+# 
 # You also need to install the following dependencies:
 # install.packages("shiny")
 # install.packages("DBI")
 # install.packages("RMySQL") # For RMySQL
 # install.packages("RSQLite") # For SQLite
 # Only run these commands once per computer.
-#
+# 
 # Remember to update systemdata/users.csv, systemdata/config.csv and systemdata/delegation.csv before
 
 library(shiny)
@@ -61,7 +61,7 @@ if(sql_type == "mysql"){
 } else 
 {
   library(RSQLite)
-  con <- dbConnect(SQLite(), file.path("data", paste0(data_base_name, ".db")))
+  con <- dbConnect(SQLite(), paste0(data_base_name, ".db"))
   if(!data_set_name %in% unlist(dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type = 'table'"))){
     table <- as.data.frame(t(matrix(columns)))[0,]
     colnames(table) <- columns
