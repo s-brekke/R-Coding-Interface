@@ -393,7 +393,7 @@ server <- function(input, output, session) {
       name <- isolate(users$name[which(users$username == user())])
       
       if(format(Sys.time()+7200, "%T") < "05:00:00" | format(Sys.time()+7200, "%T") >  "21:00:00"){
-        paste("Good evening, ", name,"!)", sep="")
+        paste("Good evening, ", name,"!", sep="")
       } else {
         if(format(Sys.time()+7200, "%T") <  "07:30:00"){
           paste("Good morning, ", name,"!", sep="")
@@ -636,7 +636,7 @@ server <- function(input, output, session) {
       case_complete <- c(case_complete, !TRUE %in% eval(parse(text=paste("c(input$", radio, "[1] == \"NA\", is.null(input$", radio, "))",  sep=""))))
     }
     
-    message(ecli())
+    message("ecli: ", ecli())
     
     if(!is.na(ecli()) & !is.na(user()) & paste(lastecli2) == paste(ecli())){
       
@@ -699,7 +699,7 @@ server <- function(input, output, session) {
           values <- gsub("dot DASH dot", "-", values, fixed=TRUE)
           values <- gsub("dot COLON dot", ":", values, fixed=TRUE)
           
-          message(user())
+          message("user:", user())
           
           dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", variables, "` = '", values, "'", collapse = ", "), " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'"))
           
