@@ -1,0 +1,8 @@
+"setting","value","description"
+"sql_type","SQLite","SQLite or MySQL"
+"data_set_name","data","Name of the data table"
+"data_base_name","database","Name of the data base"
+"showguide","TRUE","Show code guide – TRUE or FALSE"
+"host",,"If MySQL or MariaDB: Host name"
+"username",,"If MySQL or MariaDB: User name"
+"password",,"If MySQL or MariaDB: Password"

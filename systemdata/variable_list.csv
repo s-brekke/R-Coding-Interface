@@ -1,0 +1,16 @@
+"variable","variable_name","value","interpretation","description","guide","headline","text"
+"var1","Variable 1","1","tags and comments","It remains an open question","Code guide for var1","Headline above variable 1","yes"
+"var1",NA,"2",NA,"It is frequently disputed",NA,NA,NA
+"var1",NA,"3",NA,"What are you asking me for?",NA,NA,NA
+"var2","Variable 2","1",NA,"It remains an open question","Code guide for var2",NA,"no"
+"var2",NA,"2",NA,"It is frequently disputed",NA,NA,NA
+"var2",NA,"3",NA,"What are you asking me for?",NA,NA,NA
+"text_var_one","Text variable","text",NA,"Write an essay","How are you doing?",NA,NA
+"v3","Variable 4","1","multichoice","It remains an open question","Multiple choice variable","Another headline","yes"
+"v3",NA,"2",NA,"It is frequently disputed",NA,NA,NA
+"v3",NA,"3",NA,"What are you asking me for?",NA,NA,NA
+"v3",NA,"4",NA,"Above my paygrade",NA,NA,NA
+"any_name_really","Variables could have different names","a",NA,"a is the answer","a, b, or c?",NA,"yes"
+"any_name_really",NA,"b",NA,"or is it b?",NA,NA,NA
+"any_name_really",NA,"c",NA,"c seems rights",NA,NA,NA
+"text2","Just another text variable","text",NA,"placeholder text, manipulated in outcomes.xlsx",NA,NA,NA
