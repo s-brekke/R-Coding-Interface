@@ -153,20 +153,20 @@ radio_survey <- function(n,
       op_val <- FALSE
       NULL
     },
-    if(!is.na(variable_list$headline[which(variable_list$variable == radios[n])][1])){
-      tags$a(tags$h3(variable_list$headline[which(variable_list$variable == radios[n])][1]), 
-             name=gsub("\\W", "_", variable_list$headline[which(variable_list$variable == radios[n])][1]),
+    if(!is.na(variable_list$headline[which(variable_list$variable == vars[n])][1])){
+      tags$a(tags$h3(variable_list$headline[which(variable_list$variable == vars[n])][1]), 
+             name=gsub("\\W", "_", variable_list$headline[which(variable_list$variable == vars[n])][1]),
              style="all:unset")
     },
     
     if(showguide){
       tags$p(
-        tags$b(paste("Code guide for ", variable_list$variable_name[which(variable_list$variable== radios[n])][1], ": ", sep="")),  tags$br(),
-        tags$i(variable_list$guide[which(variable_list$variable== radios[n])][1])
+        tags$b(paste("Code guide for ", variable_list$variable_name[which(variable_list$variable== vars[n])][1], ": ", sep="")),  tags$br(),
+        tags$i(variable_list$guide[which(variable_list$variable== vars[n])][1])
       )
     },
     
-    if(TRUE %in% grepl("pre-filled", variable_list$interpretation[which(variable_list$variable == radios[n])])){
+    if(TRUE %in% grepl("pre-filled", variable_list$interpretation[which(variable_list$variable == vars[n])])){
       NA_name <- NULL
       NA_value <- NULL
     } else {
@@ -174,27 +174,32 @@ radio_survey <- function(n,
       NA_value <- "NA"
       NULL
     },
-    
-    if(grepl("multichoice", variable_list$interpretation[which(variable_list$variable == radios[n])[1]])){
-      checkboxGroupInput(radios[n],
-                         variable_list$variable_name[which(variable_list$variable == radios[n])][1],
-                         selected=unlist(strsplit(select, ",")),
-                         choiceNames = c(variable_list$description[which(variable_list$variable == radios[n])]),
-                         choiceValues = c(variable_list$value[which(variable_list$variable == radios[n])]))
+    if(variable_list$value[which(variable_list$variable == vars[n])[1]] == "text"){
+      textAreaInput(vars[n], 
+                    variable_list$variable_name[which(variable_list$variable== vars[n])][1],
+                    placeholder = variable_list$description[which(variable_list$variable== vars[n])][1])
     } else {
       
-      radioButtons(radios[n],
-                   variable_list$variable_name[which(variable_list$variable == radios[n])][1],
-                   selected=select,
-                   choiceNames = c(variable_list$description[which(variable_list$variable == radios[n])], NA_name),
-                   choiceValues = c(variable_list$value[which(variable_list$variable == radios[n])], NA_value))
+      if(grepl("multichoice", variable_list$interpretation[which(variable_list$variable == vars[n])[1]])){
+        checkboxGroupInput(vars[n],
+                           variable_list$variable_name[which(variable_list$variable == vars[n])][1],
+                           selected=unlist(strsplit(select, ",")),
+                           choiceNames = c(variable_list$description[which(variable_list$variable == vars[n])]),
+                           choiceValues = c(variable_list$value[which(variable_list$variable == vars[n])]))
+      } else {
+        radioButtons(vars[n],
+                     variable_list$variable_name[which(variable_list$variable == vars[n])][1],
+                     selected=select,
+                     choiceNames = c(variable_list$description[which(variable_list$variable == vars[n])], NA_name),
+                     choiceValues = c(variable_list$value[which(variable_list$variable == vars[n])], NA_value))
+      }
     },
     
-    if(paste(radios[n], "_p1", sep="") %in% colnames(outputdata)){
+    if(paste(vars[n], "_p1", sep="") %in% colnames(outputdata)){
       paragraph_survey(n, p1_val, p2_val, op_val)
     },
-    if(paste(radios[n], "_TEXT", sep="") %in% colnames(outputdata)){
-      textInput(paste(radios[n], "_TEXT", sep=""),
+    if(paste(vars[n], "_TEXT", sep="") %in% colnames(outputdata)){
+      textInput(paste(vars[n], "_TEXT", sep=""),
                 "Paste text snippet:",
                 value=text_val,
                 placeholder = fillertext)
@@ -205,6 +210,7 @@ radio_survey <- function(n,
 
 
 fillertext <- "Paste relevant text snippet"
+vars <- unique(variable_list$variable)
 radios <- unique(variable_list$variable[which(variable_list$value != "text")])
 text_variables <-  c(unique(variable_list$variable[which(variable_list$value == "text")]))
 
@@ -317,15 +323,9 @@ ui <- fluidPage(
       
       radio_survey(1),
       radio_survey(2),
-      textAreaInput(text_variables[1], # the third variable is the first text variable
-                    variable_list$variable_name[which(variable_list$variable== text_variables[1])][1],
-                    placeholder = variable_list$description[which(variable_list$variable== text_variables[1])][1]),
       radio_survey(3),
       radio_survey(4),
-      
-      textAreaInput(text_variables[2], # the third variable is the first text variable
-                    variable_list$variable_name[which(variable_list$variable== text_variables[2])][1],
-                    placeholder = variable_list$description[which(variable_list$variable== text_variables[2])][1]),
+      radio_survey(5),
       
       tags$hr(),
       
