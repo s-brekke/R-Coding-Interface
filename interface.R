@@ -107,7 +107,7 @@ variable_list <- variable_list[which(!grepl("invisible value", variable_list$int
 
 fleeting_data_line <- outputdata[1,] 
 
-last_write <- Sys.time()+7200
+last_write <- Sys.time()
 
 load(file.path("systemdata", "cjeu", "hyperlinks.rda"))
 # if(!"CJEU" %in% rownames(installed.packages())){
@@ -220,8 +220,8 @@ headlinelinks <- paste("<a href=\"#", gsub("\\W", "_", c(heads, "End")), "\">",
                        "</a><br />", sep="", collapse="")
 
 
-clicktime <- Sys.time()+7200 # This is used to make sure nothing is saved faster than the software can keep up
-starttime <- Sys.time()+7200 # Calculate time used
+clicktime <- Sys.time() # This is used to make sure nothing is saved faster than the software can keep up
+starttime <- Sys.time() # Calculate time used
 user_new <- NA
 
 
@@ -356,10 +356,10 @@ server <- function(input, output, session) {
   # On sign in: Load data
   observeEvent(input$signin,{
     user_new <<- user()
-    clicktime <<- Sys.time()+7200
+    clicktime <<- Sys.time()
     
     # Reconnect to server in case of time out
-    if(last_write < (Sys.time()+7000)){
+    if(last_write < (Sys.time())){
       # More than 200 seconds (3 min) since last save
       # Reconnect to server in case of time out
       if(sql_type == "mysql"){
@@ -392,10 +392,10 @@ server <- function(input, output, session) {
     output$username <- renderText({
       name <- isolate(users$name[which(users$username == user())])
       
-      if(format(Sys.time()+7200, "%T") < "05:00:00" | format(Sys.time()+7200, "%T") >  "21:00:00"){
+      if(format(Sys.time(), "%T") < "05:00:00" | format(Sys.time(), "%T") >  "21:00:00"){
         paste("Good evening, ", name,"!", sep="")
       } else {
-        if(format(Sys.time()+7200, "%T") <  "07:30:00"){
+        if(format(Sys.time(), "%T") <  "07:30:00"){
           paste("Good morning, ", name,"!", sep="")
         } else {
           paste("Signed in as ", name, sep="") 
@@ -550,7 +550,7 @@ server <- function(input, output, session) {
                               value=outputdata[, t])
         })
       }
-      clicktime <<- Sys.time()+7200
+      clicktime <<- Sys.time()
       
       updateCheckboxInput(session,
                           "Not_applicable",
@@ -636,7 +636,7 @@ server <- function(input, output, session) {
       case_complete <- c(case_complete, !TRUE %in% eval(parse(text=paste("c(input$", radio, "[1] == \"NA\", is.null(input$", radio, "))",  sep=""))))
     }
     
-    message("ecli: ", ecli())
+    # message("ecli: ", ecli())
     
     if(!is.na(ecli()) & !is.na(user()) & paste(lastecli2) == paste(ecli())){
       
@@ -660,7 +660,7 @@ server <- function(input, output, session) {
       
       x <- which(paste(in_output[colnames]) != paste(in_input))
       
-      if(length(x) > 0 & Sys.time()+7198 > clicktime){
+      if(length(x) > 0 & Sys.time()-1 > clicktime){
         if(TRUE %in% c(in_input[x] == "NA" & grepl("\\d", paste(in_output[x])))){
           showNotification(paste("WARNING: Attempting to overwrite previously recorded data with NA values.
         Automatic saving is disabled.
@@ -671,7 +671,7 @@ server <- function(input, output, session) {
                            duration=15)
         } else {
           
-          if(last_write < (Sys.time()+7000)){
+          if(last_write < (Sys.time()-200)){
             # More than 200 seconds (3 min) since last save
             # Reconnect to server in case of time out
             if(sql_type == "mysql"){
@@ -686,7 +686,7 @@ server <- function(input, output, session) {
           }
           
           variables <- c(colnames[x], "date_coded", "date_coded_text")
-          values <- c(in_input[x], Sys.time()+7200, as.character(Sys.time()+7200))
+          values <- c(in_input[x], Sys.time(), as.character(Sys.time()))
           
           values <- gsub(":", "dot COLON dot", values, fixed=TRUE)
           values <- gsub("-", "dot DASH dot", values, fixed=TRUE)
@@ -699,7 +699,7 @@ server <- function(input, output, session) {
           values <- gsub("dot DASH dot", "-", values, fixed=TRUE)
           values <- gsub("dot COLON dot", ":", values, fixed=TRUE)
           
-          message("user:", user())
+          # message("user: ", user())
           
           dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", variables, "` = '", values, "'", collapse = ", "), " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'"))
           
@@ -711,7 +711,7 @@ server <- function(input, output, session) {
             showNotification(paste("An error appears to have ocurred when saving the data. If the problem persists, please try reloading the page. If that doesn't help, please send me (Stein Arne) an email about it. :)"),
                              duration=10)
           } else {
-            last_write <<- Sys.time()+7200
+            last_write <<- Sys.time()
           }
         }
       }
@@ -898,7 +898,7 @@ server <- function(input, output, session) {
                  isolate({
                    updateTextInput(session, "ecli", value=newecli)
                  })
-                 clicktime <<- Sys.time()+7200
+                 clicktime <<- Sys.time()
                })
   
   observeEvent(input$previouscase,
@@ -922,7 +922,7 @@ server <- function(input, output, session) {
                  isolate({
                    updateTextInput(session, "ecli", value=newecli)
                  })
-                 clicktime <<- Sys.time()+7200
+                 clicktime <<- Sys.time()
                })
   
   observeEvent(input$randomcase,
@@ -947,7 +947,7 @@ server <- function(input, output, session) {
                    updateTextInput(session, "ecli", value=newecli)
                  })
                  
-                 clicktime <<- Sys.time()+7200
+                 clicktime <<- Sys.time()
                  
                  
                })
@@ -1020,7 +1020,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$timer,
                {
-                 showNotification(paste("It has been", round(difftime(Sys.time()+7200, starttime, units="hours"),2),
+                 showNotification(paste("It has been", round(difftime(Sys.time(), starttime, units="hours"),2),
                                         "hours since you started working"),
                                   duration=10)
                })
