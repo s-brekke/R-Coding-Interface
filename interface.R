@@ -328,6 +328,25 @@ ui <- fluidPage(
       radio_survey(3),
       radio_survey(4),
       radio_survey(5),
+      radio_survey(6),
+      radio_survey(7),
+      radio_survey(8),
+      radio_survey(9),
+      radio_survey(10),
+      radio_survey(11),
+      radio_survey(12),
+      radio_survey(13),
+      radio_survey(14),
+      radio_survey(15),
+      radio_survey(16),
+      radio_survey(17),
+      radio_survey(18),
+      radio_survey(19),
+      radio_survey(20),
+      radio_survey(21),
+      radio_survey(22),
+      radio_survey(23),
+      radio_survey(24),
       
       tags$hr(),
       
@@ -637,9 +656,6 @@ server <- function(input, output, session) {
     for(radio in radios){
       case_complete <- c(case_complete, !TRUE %in% eval(parse(text=paste("c(input$", radio, "[1] == \"NA\", is.null(input$", radio, "))",  sep=""))))
     }
-    
-    # message("ecli: ", ecli())
-    
     if(!is.na(ecli()) & !is.na(user()) & paste(lastecli2) == paste(ecli())){
       
       # Reconnect if connection to server is lost
@@ -661,6 +677,7 @@ server <- function(input, output, session) {
       in_input <- in_input
       
       x <- which(paste(in_output[colnames]) != paste(in_input))
+      
       
       if(length(x) > 0 & Sys.time()-1 > clicktime){
         if(TRUE %in% c(in_input[x] == "NA" & grepl("\\d", paste(in_output[x])))){
@@ -746,19 +763,20 @@ server <- function(input, output, session) {
             p("Welcome!", style="color:black; text-align:center; font-size:30px;"),
             p("Please sign in and open a case before you start.", style="color:black; text-align:center; font-size:15px; font-style:italic;"))
         } else {
-          if(input$Not_applicable){
-            
-            lastmissings <<- length(which(!case_complete))
-            lastecli <<- ecli()
-            div(
-              p("Case completed!", style="color:green; text-align:center; font-size:30px;"),
-              p("Not applicable", style="color:green; text-align:center; font-size:15px; font-style:italic;"))
-          } else {
-            # div(
-            #   p("Work in progress!", style="color:red; text-align:center; font-size:30px;"),
-            #   p("I am completely changing how data is stored, please wait. Sorry about the inconvenience.", style="color:red; text-align:center; font-size:15px; font-style:italic;"))
-            ""
-          }
+          # if(input$Not_applicable){
+          #   
+          #   lastmissings <<- length(which(!case_complete))
+          #   lastecli <<- ecli()
+          #   div(
+          #     p("Case completed!", style="color:green; text-align:center; font-size:30px;"),
+          #     p("Not applicable", style="color:green; text-align:center; font-size:15px; font-style:italic;"))
+          # } else {
+          #   # div(
+          #   #   p("Work in progress!", style="color:red; text-align:center; font-size:30px;"),
+          #   #   p("I am completely changing how data is stored, please wait. Sorry about the inconvenience.", style="color:red; text-align:center; font-size:15px; font-style:italic;"))
+          #   ""
+          # }
+          ""
         }
       }
     }
