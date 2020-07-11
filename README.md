@@ -46,6 +46,9 @@ set up a data base separately before connecting.
 You will need to install the SQL server of your choice on your computer/server if this is not already done.
 
 
+### Run
+Make sure the working directory is the home folder of the interface before running.
+
 ## Dependencies
 You also need to install the following dependencies:
 ```R
@@ -58,4 +61,4 @@ install.packages("RMySQL") # For RMySQL
 
 Only run these commands once per computer.
 
-
+A working install of MySQL, MariaDB or SQLite is also required for the interface to work.
