@@ -28,22 +28,13 @@ After updating the variable list, these changes must be reflected in *interface.
 
 Find the headline in the code named "LIST OF VARIABLES".
 
-Under this headline there are two types of outputs: 
+Under this headline, add the following line for each unique variable:
 
 ```R
-radio_survey(n)
+radio_survey(n),
 ```
 
-for variables with multiple alternatives, and the less optimalized 
-
-```R
-textAreaInput(text_variables[x], # the third variable is the first text variable
-                    variable_list$variable_name[which(variable_list$variable== text_variables[x])][1],
-                    placeholder = variable_list$description[which(variable_list$variable== text_variables[x])][1]),
-```
-
-For text variables. n and x indicates counts of these variables: include one such element for each variable. Note
-that text variables and multiple choice variables are counted separately.
+Where n is a count from 1 to the number of unique variables.
 
 ### Type of data base
 Before you start coding, you have to decide if you want to use MariaDB/MySQL or SQLite. MariaDB/MySQL runs on
