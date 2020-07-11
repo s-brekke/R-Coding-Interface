@@ -70,6 +70,14 @@ if(sql_type == "mysql"){
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
 }
 
+# Add new variable(s) 
+if(length(columns[which(!columns %in% colnames(outputdata))]) > 0){
+  for(c in columns[which(!columns %in% colnames(outputdata))]){
+    dbSendStatement(con, paste0("ALTER TABLE ", data_set_name, " ADD COLUMN ",
+                                paste(c, NA, "TEXT")))
+  }
+  outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
+}
 
 # Delegate cases to users
 users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
