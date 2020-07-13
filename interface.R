@@ -294,13 +294,7 @@ ui <- fluidPage(
       tags$b("Last updated:"),
       textOutput("last_update"),
       
-      
-      checkboxInput("Not_applicable", label="Not decided as free movement of goods", 
-                    value=FALSE),
-      # uiOutput("case_not_applicable"),
-      
-      
-      
+
       selectInput("user", "User:", c(users$usernames)),
       textOutput("username"),
       actionButton("signin", "Sign in"),
