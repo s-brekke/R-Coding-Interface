@@ -251,11 +251,11 @@ ui <- fluidPage(
                                           outputdata$coded_by == paste(user_new))], "")[1],
                 placeholder = "Please sign in before starting"),
       
-      tags$div(actionButton("previouscase", "← previous", width="40%"),
+      tags$div(actionButton("previouscase", "<= previous", width="40%"),
                
                actionButton("randomcase", "?", width="15%"),
                
-               actionButton("nextcase", "next →", width="40%"),
+               actionButton("nextcase", "next =>", width="40%"),
                style="display:inline-block; width:100%"),
       
       
@@ -328,25 +328,6 @@ ui <- fluidPage(
       radio_survey(3),
       radio_survey(4),
       radio_survey(5),
-      radio_survey(6),
-      radio_survey(7),
-      radio_survey(8),
-      radio_survey(9),
-      radio_survey(10),
-      radio_survey(11),
-      radio_survey(12),
-      radio_survey(13),
-      radio_survey(14),
-      radio_survey(15),
-      radio_survey(16),
-      radio_survey(17),
-      radio_survey(18),
-      radio_survey(19),
-      radio_survey(20),
-      radio_survey(21),
-      radio_survey(22),
-      radio_survey(23),
-      radio_survey(24),
       
       tags$hr(),
       
