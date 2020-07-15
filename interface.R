@@ -25,8 +25,34 @@
 library(shiny)
 library(DBI)
 
-# Load config file: 
-config <- read.csv(file.path("systemdata", "config.csv"), stringsAsFactors = FALSE); rownames(config) <- config$setting
+# Load config files
+# Todo: Make this dependant on the files existing, bug test
+variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE)
+users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
+delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE) 
+config <- read.csv(file.path("systemdata", "config.csv"), stringsAsFactors = FALSE)
+
+# Read config files if excel
+if("readxl" %in% rownames(installed.packages())){
+  library(readxl)
+  if("delegation.xlsx" %in% list.files("systemdata")){
+    delegated_cases <- read_excel(file.path("systemdata","delegation.xlsx"))       
+    write.csv(delegated_cases, file.path("systemdata", "delegation.csv"), row.names = FALSE)
+  }
+  if("variable_list.xlsx" %in% list.files("systemdata")){
+    variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))       
+    write.csv(variable_list, file.path("systemdata", "variable_list.csv"), row.names = FALSE)
+  }
+  if("users.xlsx" %in% list.files("systemdata")){
+    users <- read_excel(file.path("systemdata","users.xlsx"))       
+    write.csv(users, file.path("systemdata", "users.csv"), row.names = FALSE)
+  }
+  if("config.xlsx" %in% list.files("systemdata")){
+    config <- read_excel(file.path("systemdata","config.xlsx"))       
+    write.csv(config, file.path("systemdata", "config.csv"), row.names = FALSE)
+  }
+}
+rownames(config) <- config$setting
 config <- as.data.frame(t(config))[2,]
 
 sql_type <- tolower(config$sql_type)
@@ -34,15 +60,7 @@ data_base_name <- as.character(config$data_base_name)
 data_set_name <- as.character(config$data_set_name)
 showguide <- as.logical(config$showguide)
 
-# variable_list #####
-# Read variable_list from excel if possible
-if("readxl" %in% rownames(installed.packages())){                                 # can be cut
-  library(readxl)                                                                 # can be cut
-  variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))                 # can be cut
-  write.csv(variable_list, file.path("systemdata", "variable_list.csv"), row.names = FALSE) # can be cut
-} else {                                                                          # can be cut
-  variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE) # KEEEP THIS!
-}                                                                                 # can be cut
+
 variable_list <- variable_list[which(!grepl("invisible value", variable_list$interpretation)),]
 
 columns <- c("ecli", "coded_by", "date_coded", "date_coded_text", unique(variable_list$variable))
@@ -79,12 +97,6 @@ if(length(columns[which(!columns %in% colnames(outputdata))]) > 0){
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
 }
 
-# Delegate cases to users
-users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
-delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE)
-
-eclis_to_code <- as.character(delegated_cases$ID)
-users_who_code <- as.character(delegated_cases$user)
 
 
 # variable_list #####
@@ -94,9 +106,17 @@ if("readxl" %in% rownames(installed.packages())){                               
   variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))                 # can be cut
   write.csv(variable_list, file.path("systemdata", "variable_list.csv"), row.names = FALSE) # can be cut
 } else {                                                                          # can be cut
-  variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE) # KEEEP THIS!
+  variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE)
+  users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
+  delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE) # KEEP THIS!
 }                                                                                 # can be cut
 variable_list <- variable_list[which(!grepl("invisible value", variable_list$interpretation)),]
+
+# Delegate cases to users
+
+
+eclis_to_code <- as.character(delegated_cases$ID)
+users_who_code <- as.character(delegated_cases$user)
 
 
 # variables <- unique(variable_list$variable)
@@ -315,7 +335,6 @@ ui <- fluidPage(
     
     # Main panel for the hand coders:
     mainPanel(
-      
       
       # THIS IS WHERE IT HAPPENS:
       # add one radio_survey (multiple choice) or textAreaInput (text variable) for every variable
