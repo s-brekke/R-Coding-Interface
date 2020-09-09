@@ -4,7 +4,13 @@ R Shiny based hand coding interface created for CJEU-related purposes. Can be co
 cases, provided that hard-coded references to ECLI numbers (ID codes used for CJEU case law) are changed.
 
 ## Getting started 
-Four tables need to be updated before you start coding, all of which are located in the **systemdata** folder. These are:
+Four tables need to be updated before you start coding, all of which are located in the **systemdata** folder. These
+tables are dependant on being stored in a csv format identical to the one they are presented in by default. 
+
+If you are in doubt or editing from excel, save your edited table as a .xlsx file rather than .csv, and make sure the
+*readxl* package is installed in R. The script will automatically identify the excel tables and work with these instead.
+
+By default, excel format is used for the *variable_list*, due to its complex nature of containing free text.
 
 #### users.csv
 This contains a list of users of the interface. If only one user is needed, provide only one user in the table.
@@ -18,10 +24,6 @@ A list of ECLI numbers and the user names of the users who these cases are assig
 
 #### variable_list.xlsx / variable_list.csv
 A list of variable names, descriptions, and possible values. 
-
-Changes in *variable_list.xlsx* will automatically be adapted and saved as *variable_list.csv* if the "readxl"
-package is installed in R. The script can also be easily changed to always read *variable_list.csv*, but do so
-with caution as this is a complex csv file that can not be easily saved from Microsoft Excel.
 
 ### Make changes to interface
 After updating the variable list, these changes must be reflected in *interface.R*.

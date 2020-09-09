@@ -5,7 +5,7 @@
 #               | |___| (_) | (_| | | | | | (_| |   | | | | | ||  __/ |  | || (_| | (_|  __/
 #                \_____\___/ \__,_|_|_| |_|\__, |   |_|_| |_|\__\___|_|  |_| \__,_|\___\___|
 #                                           __/ |                                         
-#                         EUI, 2020         |___/          Written by Stein Arne Brekke
+#                        EUI, 2020         |___/          Written by Stein Arne Brekke
 #
 # README:
 # Before you start coding, you have to decide if you want to use MariaDB/MySQL or SQLite. MariaDB/MySQL runs on
@@ -63,15 +63,15 @@ showguide <- as.logical(config$showguide)
 
 variable_list <- variable_list[which(!grepl("invisible value", variable_list$interpretation)),]
 
-columns <- c("ecli", "coded_by", "date_coded", "date_coded_text", unique(variable_list$variable))
+columns <- c("ID", "coded_by", "date_coded", "date_coded_text", unique(variable_list$variable))
 
 
 if(sql_type == "mysql"){
-  library(RMySQL)
+  library(RMariaDB)
   
   # mariaDB or MySQL: Connect to server ####
   dbname <- data_base_name
-  con <- dbConnect(MySQL(), host = host,
+  con <- dbConnect(MariaDB(), host = host,
                    dbname = dbname,
                    username = username,
                    password = password)
@@ -91,7 +91,7 @@ if(sql_type == "mysql"){
 # Add new variable(s) 
 if(length(columns[which(!columns %in% colnames(outputdata))]) > 0){
   for(c in columns[which(!columns %in% colnames(outputdata))]){
-    dbSendStatement(con, paste0("ALTER TABLE ", data_set_name, " ADD COLUMN ",
+    dbExecute(con, paste0("ALTER TABLE ", data_set_name, " ADD COLUMN ",
                                 paste(c, NA, "TEXT")))
   }
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
@@ -115,7 +115,7 @@ variable_list <- variable_list[which(!grepl("invisible value", variable_list$int
 # Delegate cases to users
 
 
-eclis_to_code <- as.character(delegated_cases$ID)
+IDs_to_code <- as.character(delegated_cases$ID)
 users_who_code <- as.character(delegated_cases$user)
 
 
@@ -265,9 +265,9 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       
-      textInput("ecli", 
-                "ECLI:",
-                c(outputdata$ecli[which(outputdata$date_coded == max(c(na.omit(outputdata$date_coded[which(outputdata$coded_by == paste(user_new))])),0) &
+      textInput("ID", 
+                "ID number:",
+                c(outputdata$ID[which(outputdata$date_coded == max(c(na.omit(outputdata$date_coded[which(outputdata$coded_by == paste(user_new))])),0) &
                                           outputdata$coded_by == paste(user_new))], "")[1],
                 placeholder = "Please sign in before starting"),
       
@@ -290,7 +290,7 @@ ui <- fluidPage(
       tags$br(),
       tags$div(tags$b("ECLI:"),
                style="display:inline-block"),
-      tags$div(textOutput("eclinumber"),
+      tags$div(textOutput("IDnumber"),
                style="display:inline-block"),
       tags$br(),
       
@@ -363,12 +363,15 @@ ui <- fluidPage(
 # Now for the server side:
 server <- function(input, output, session) {
   
-  # Collect "ecli". Universal variables have to be defined as reactive functions.
-  ecli <- reactive(Decisions$ecli[which(Decisions$ecli == gsub("^\\W*|\\W*$", "", input$ecli) |
-                                          Decisions$celex == gsub("^\\W*|\\W*$", "", input$ecli) |
-                                          Decisions$case == gsub("^(\\d+/)", "C-\\1", gsub("^\\W*|\\W*$", "", input$ecli)) & 
-                                          Decisions$type == "Judgment"
-  )][1])
+  # # Collect "ID". Universal variables have to be defined as reactive functions.
+  # # If CJEU document:
+  # ID <- reactive(Decisions$ecli[which(Decisions$ecli == gsub("^\\W*|\\W*$", "", input$ID) |
+  #                                         Decisions$celex == gsub("^\\W*|\\W*$", "", input$ID) |
+  #                                         Decisions$case == gsub("^(\\d+/)", "C-\\1", gsub("^\\W*|\\W*$", "", input$ID)) & 
+  #                                         Decisions$type == "Judgment"
+  # )][1])
+  # # Else:
+  ID <- reactive(input$ID)
   
   user <- eventReactive(input$signin, {
     input$user
@@ -385,7 +388,7 @@ server <- function(input, output, session) {
       # Reconnect to server in case of time out
       if(sql_type == "mysql"){
         try(dbDisconnect(con), silent=TRUE)
-        con <<- dbConnect(MySQL(), host = host,
+        con <<- dbConnect(MariaDB(), host = host,
                           dbname = dbname,
                           username = username,
                           password = password)
@@ -396,19 +399,19 @@ server <- function(input, output, session) {
     
     x <- which(users$username == user())
     
-    newest <- dbGetQuery(con, paste0("SELECT ecli,date_coded,date_coded_text FROM ", data_set_name, " WHERE coded_by = '", as.character(user()) , "'"))
+    newest <- dbGetQuery(con, paste0("SELECT ID,date_coded,date_coded_text FROM ", data_set_name, " WHERE coded_by = '", as.character(user()) , "'"))
     if(length(na.omit(newest$date_coded)) > 0){
-      newest <- newest$ecli[which(newest$date_coded == max(newest$date_coded, na.rm = TRUE))][1]
+      newest <- newest$ID[which(newest$date_coded == max(newest$date_coded, na.rm = TRUE))][1]
     } else {
-      newest <- ecli()
+      newest <- ID()
     }
-    updateTextInput(session, "ecli", value="loading...")
-    loadecli <- newest
-    if(is.na(loadecli)){
-      loadecli <- eclis_to_code[which(users_who_code == user())][1]
+    updateTextInput(session, "ID", value="loading...")
+    loadID <- newest
+    if(is.na(loadID)){
+      loadID <- IDs_to_code[which(users_who_code == user())][1]
     }
-    updateTextInput(session, "ecli", value=loadecli)
-    message("loaded ", loadecli)
+    updateTextInput(session, "ID", value=loadID)
+    message("loaded ", loadID)
     
     output$username <- renderText({
       name <- isolate(users$name[which(users$username == user())])
@@ -430,13 +433,13 @@ server <- function(input, output, session) {
   # URL and type
   output$url <- renderUI({
     url <- NA
-    if(ecli() %in% hyperlinks$ecli){ 
-      url <- hyperlinks$url[which(hyperlinks$ecli == ecli())][1]
+    if(ID() %in% hyperlinks$ID){ 
+      url <- hyperlinks$url[which(hyperlinks$ID == ID())][1]
     }
     if(!grepl("doclang=en", paste(url), ignore.case = TRUE)){
-      url <- paste("http://curia.europa.eu/juris/liste.jsf?critereEcli=", ecli(), sep="")
+      url <- paste("http://curia.europa.eu/juris/liste.jsf?critereEcli=", ID(), sep="")
     }
-    hyperlink <- a(paste(unique(unlist(data$type[which(data$ecli==ecli())])), collapse=", "),
+    hyperlink <- a(paste(unique(unlist(data$type[which(data$ID==ID())])), collapse=", "),
                    href=url,
                    target="blank")
     tagList(hyperlink)
@@ -514,15 +517,15 @@ server <- function(input, output, session) {
   
   output$docinfo <- renderUI({
     url <- NA
-    # if(ecli() %in% blankdata$ecli){ # Create list of URLs somewhere else - master data, rather 
-    #   url <- blankdata$url[which(blankdata$ecli == ecli())]
+    # if(ID() %in% blankdata$ID){ # Create list of URLs somewhere else - master data, rather 
+    #   url <- blankdata$url[which(blankdata$ID == ID())]
     # } 
-    if(!is.na(ecli())){
-      url <- paste("https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=ecli:", ecli(), sep="")
+    if(!is.na(ID())){
+      url <- paste("https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=ID:", ID(), sep="")
       hyperlink1 <- a("Document information; ",
                       href=url,
                       target="blank")
-      url <- paste("https://eur-lex.europa.eu/legal-content/EN/SUM/?uri=ecli:", ecli(), sep="")
+      url <- paste("https://eur-lex.europa.eu/legal-content/EN/SUM/?uri=ID:", ID(), sep="")
       hyperlink2 <- a(" Summary",
                       href=url,
                       target="blank")
@@ -532,18 +535,18 @@ server <- function(input, output, session) {
   
   
   output$subject_matter <- renderText({
-    paste(unique(unlist(data$subject_matter[which(data$ecli==ecli())])), collapse=", ")
+    paste(unique(unlist(data$subject_matter[which(data$ID==ID())])), collapse=", ")
   })
   
-  output$eclinumber <- renderText({
-    ecli()
+  output$IDnumber <- renderText({
+    ID()
   })
   output$casenumber <- renderText({
-    Decisions$case[which(Decisions$ecli == ecli())]
+    Decisions$case[which(Decisions$ecli == ID())]
   })
   
   output$celex <- renderText({
-    Decisions$celex[which(Decisions$ecli == ecli())]
+    Decisions$celex[which(Decisions$ecli == ID())]
   })
   
   # This function updates most things, not just the title
@@ -551,17 +554,18 @@ server <- function(input, output, session) {
     
     
     if(user() == "Sign in"){
-      updateTextInput(session, "ecli", value="Please sign in before starting")
+      updateTextInput(session, "ID", value="Please sign in before starting")
     } else {
       
-      outputdata <- dbGetQuery(con, paste0("SELECT * FROM ",data_set_name, " WHERE `ecli` = '", ecli(),  "' AND `coded_by` = '", as.character(user()), "'"))
+      outputdata <- dbGetQuery(con, paste0("SELECT * FROM ",data_set_name, " WHERE `ID` = '", ID(),  "' AND `coded_by` = '", as.character(user()), "'"))
       
       # Insert new row if missing
-      if(nrow(dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE ecli = '", ecli(), "' AND coded_by = '", user(), "'"))) == 0){
-        dbSendStatement(con, paste0("INSERT INTO ", data_set_name, " (ecli, coded_by) VALUES ('", ecli(), "', '", user(), "')"))
+      if(nrow(dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE ID = '", ID(), "' AND coded_by = '", user(), "'"))) == 0){
+        dbExecute(con, paste0("INSERT INTO ", data_set_name, " (ID, coded_by) VALUES (?,?)"),
+                  list(ID(), user()))
       }
       
-      # message("Loaded: ", outputdata$ecli[1], " as ", outputdata$coded_by[1])
+      # message("Loaded: ", outputdata$ID[1], " as ", outputdata$coded_by[1])
       # message(paste(colnames(outputdata), collapse=", "))
       
       for(t in text_variables){
@@ -596,7 +600,7 @@ server <- function(input, output, session) {
         }
         
         if(paste(radio, "_OP", sep="") %in% colnames(outputdata)){
-          operative_part <- ifelse(!ecli() %in% outputdata$ecli,
+          operative_part <- ifelse(!ID() %in% outputdata$ID,
                                    "FALSE",
                                    paste(outputdata[,paste(radio, "_OP", sep="")]) == TRUE)
           updateCheckboxInput(session,
@@ -634,20 +638,20 @@ server <- function(input, output, session) {
     
     # updateTextInput(session, "firstpar_feedback", value=outputdata$firstpar[])
     # updateTextInput(session, "note", value=outputdata$note[])
-    data$title[which(data$ecli==ecli())]
+    data$title[which(data$ID==ID())]
   })
   
   output$completed <- renderUI({
     
     if(!exists("lastmissings")){
       lastmissings <- 0
-      lastecli <- "missing"
+      lastID <- "missing"
     }
-    if(!exists("lastecli2")){
-      lastecli2 <- "missing"
+    if(!exists("lastID2")){
+      lastID2 <- "missing"
     }
     
-    outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE `ecli` = '", ecli(),  "' AND `coded_by` = '", user(), "'"))
+    outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE `ID` = '", ID(),  "' AND `coded_by` = '", user(), "'"))
     
     fleeting_data_line <<- outputdata #this solution is UGLY - but helps load optional fields
     
@@ -656,7 +660,7 @@ server <- function(input, output, session) {
     for(radio in radios){
       case_complete <- c(case_complete, !TRUE %in% eval(parse(text=paste("c(input$", radio, "[1] == \"NA\", is.null(input$", radio, "))",  sep=""))))
     }
-    if(!is.na(ecli()) & !is.na(user()) & paste(lastecli2) == paste(ecli())){
+    if(!is.na(ID()) & !is.na(user()) & paste(lastID2) == paste(ID())){
       
       # Reconnect if connection to server is lost
       
@@ -707,23 +711,14 @@ server <- function(input, output, session) {
           variables <- c(colnames[x], "date_coded", "date_coded_text")
           values <- c(in_input[x], Sys.time(), as.character(Sys.time()))
           
-          values <- gsub(":", "dot COLON dot", values, fixed=TRUE)
-          values <- gsub("-", "dot DASH dot", values, fixed=TRUE)
-          values <- gsub(".", "dot D O T dot", values, fixed=TRUE)
-          values <- gsub(",", "comma D O T comma", values, fixed=TRUE)
-          values <- gsub("\\", "/", values, fixed=TRUE)
-          values <- gsub("\\W", " ", values)
-          values <- gsub("comma D O T comma", ",", values, fixed=TRUE)
-          values <- gsub("dot D O T dot", ".", values, fixed=TRUE)
-          values <- gsub("dot DASH dot", "-", values, fixed=TRUE)
-          values <- gsub("dot COLON dot", ":", values, fixed=TRUE)
-          
           # message("user: ", user())
+          dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", variables, "` = ?", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
+                    as.list(c(values, ID(), user())))
           
-          dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", variables, "` = '", values, "'", collapse = ", "), " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'"))
           
           returned <- "no connection"
-          returned <- try(dbGetQuery(con, paste0("SELECT `", variables[1], "` FROM ", data_set_name, " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'")),
+          returned <- try(dbGetQuery(con, paste0("SELECT `", variables[1], "` FROM ", data_set_name, " WHERE `ID` = ? AND `coded_by` = ?"),
+                                                 list(ID(), user())),
                           silent=TRUE)
           
           if(returned  != values[1]){
@@ -737,7 +732,7 @@ server <- function(input, output, session) {
       
       # message(paste(colnames[which(paste(in_output[colnames]) != paste(in_input))], collapse = ", "))
     }
-    lastecli2 <<- ecli()
+    lastID2 <<- ID()
     
     isolate({
       updateActionButton(session, "submit", label="Save")
@@ -752,13 +747,13 @@ server <- function(input, output, session) {
       if(length(which(!case_complete)) < 6){
         
         lastmissings <<- length(which(!case_complete))
-        lastecli <<- ecli()
+        lastID <<- ID()
         div(
           p("Almost done!", style="color:orange; text-align:center; font-size:30px;"),
           p(paste("Still missing:", paste(variable_list$variable_name[match(radios[which(!case_complete)], variable_list$variable)], collapse=", ")),
             style="color:orange; text-align:center; font-size:15px; font-style:italic;"))
       } else {
-        if(is.na(ecli())){
+        if(is.na(ID())){
           div(
             p("Welcome!", style="color:black; text-align:center; font-size:30px;"),
             p("Please sign in and open a case before you start.", style="color:black; text-align:center; font-size:15px; font-style:italic;"))
@@ -766,7 +761,7 @@ server <- function(input, output, session) {
           # if(input$Not_applicable){
           #   
           #   lastmissings <<- length(which(!case_complete))
-          #   lastecli <<- ecli()
+          #   lastID <<- ID()
           #   div(
           #     p("Case completed!", style="color:green; text-align:center; font-size:30px;"),
           #     p("Not applicable", style="color:green; text-align:center; font-size:15px; font-style:italic;"))
@@ -783,14 +778,14 @@ server <- function(input, output, session) {
   })
   
   output$last_update <- renderText({
-    paste0(dbGetQuery(con, paste0("SELECT `date_coded_text` FROM ", data_set_name, " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'")))
+    paste0(dbGetQuery(con, paste0("SELECT `date_coded_text` FROM ", data_set_name, " WHERE `ID` = '", ID(), "' AND `coded_by` = '", user(), "'")))
   })
   
   output$published <- renderText({
-    format(data$date_document[which(data$ecli==ecli())], "%x")
+    format(data$date_document[which(data$ID==ID())], "%x")
   })
   output$lodged <- renderText({
-    format(data$date_lodged[which(data$ecli==ecli())], "%x")
+    format(data$date_lodged[which(data$ID==ID())], "%x")
   })
   
   output$downloadData <- downloadHandler(
@@ -802,7 +797,7 @@ server <- function(input, output, session) {
   
   # # Early XML test
   # output$firstpar <- renderText({
-  #   firstpar <- getPar(ecli(), "1")
+  #   firstpar <- getPar(ID(), "1")
   #   ifelse(is.na(firstpar), "First paragraph not found.", firstpar)
   # })
   
@@ -811,7 +806,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$submit,
                {
-                 if(!is.na(ecli())){
+                 if(!is.na(ID())){
                    
                    columns <- NULL
                    values <- NULL
@@ -827,22 +822,10 @@ server <- function(input, output, session) {
                      values <- c(values, value)
                    }
                    
-                   # This can and should be solved much better - should be easy as well.
-                   # Maybe use RmariaDB instead of RMySQL.
-                   # In SQLite it can be solved with ? and list(), but that doesn't work in MySQL
-                   values <- gsub(":", "dot COLON dot", values, fixed=TRUE)
-                   values <- gsub("-", "dot DASH dot", values, fixed=TRUE)
-                   values <- gsub(".", "dot D O T dot", values, fixed=TRUE)
-                   values <- gsub(",", "comma D O T comma", values, fixed=TRUE)
-                   values <- gsub("\\", "/", values, fixed=TRUE)
-                   values <- gsub("\\W", " ", values)
-                   values <- gsub("comma D O T comma", ",", values, fixed=TRUE)
-                   values <- gsub("dot D O T dot", ".", values, fixed=TRUE)
-                   values <- gsub("dot DASH dot", "-", values, fixed=TRUE)
-                   values <- gsub("dot COLON dot", ":", values, fixed=TRUE)
-                   
+
                    # Update SQL
-                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = '", values, "'", collapse = ", "), " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'"))
+                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = ? ", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
+                             as.list(c(values, ID(), user())))
                    
                    updateActionButton(session, "submit", label="Saved!")
                  }
@@ -850,7 +833,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$submit2,
                {
-                 if(!is.na(ecli())){
+                 if(!is.na(ID())){
                    broken_radios <- NULL
                    if(input$DEF == 0){broken_radios <- c(broken_radios, "TYPEDEF")}
                    if(input$DEFOP == 0){broken_radios <- c(broken_radios, "TYPEDEFOP")}
@@ -874,19 +857,9 @@ server <- function(input, output, session) {
                    }
                    
                    
-                   values <- gsub(":", "dot COLON dot", values, fixed=TRUE)
-                   values <- gsub("-", "dot DASH dot", values, fixed=TRUE)
-                   values <- gsub(".", "dot D O T dot", values, fixed=TRUE)
-                   values <- gsub(",", "comma D O T comma", values, fixed=TRUE)
-                   values <- gsub("\\", "/", values, fixed=TRUE)
-                   values <- gsub("\\W", " ", values)
-                   values <- gsub("comma D O T comma", ",", values, fixed=TRUE)
-                   values <- gsub("dot D O T dot", ".", values, fixed=TRUE)
-                   values <- gsub("dot DASH dot", "-", values, fixed=TRUE)
-                   values <- gsub("dot COLON dot", ":", values, fixed=TRUE)
-                   
                    # Update SQL
-                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = '", values, "'", collapse = ", "), " WHERE `ecli` = '", ecli(), "' AND `coded_by` = '", user(), "'"))
+                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = ?", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
+                             as.list(c(values, ID(), user())))
                    
                    
                    updateActionButton(session, "submit2", label="Saved!")
@@ -896,27 +869,27 @@ server <- function(input, output, session) {
   observeEvent(input$nextcase,
                {
                  
-                 # message("From ", ecli())
+                 # message("From ", ID())
                  
                  if(user() %in% users_who_code){
-                   eclis_to_code <- eclis_to_code[which(users_who_code == user())]
+                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
                  } else {
-                   eclis_to_code <- unique(eclis_to_code)
-                   users_who_code <- rep(user(), length(eclis_to_code))
+                   IDs_to_code <- unique(IDs_to_code)
+                   users_who_code <- rep(user(), length(IDs_to_code))
                  }
-                 if(ecli() %in% eclis_to_code & ecli() != eclis_to_code[length(eclis_to_code)]){
-                   newecli <- eclis_to_code[which(eclis_to_code == ecli())+1]
+                 if(ID() %in% IDs_to_code & ID() != IDs_to_code[length(IDs_to_code)]){
+                   newID <- IDs_to_code[which(IDs_to_code == ID())+1]
                  } else {
-                   newecli <- eclis_to_code[length(eclis_to_code)]
+                   newID <- IDs_to_code[length(IDs_to_code)]
                  }
-                 if(is.na(newecli)){
-                   newecli <- ecli()
+                 if(is.na(newID)){
+                   newID <- ID()
                  }
                  
-                 # message("To ",newecli)
+                 # message("To ",newID)
                  
                  isolate({
-                   updateTextInput(session, "ecli", value=newecli)
+                   updateTextInput(session, "ID", value=newID)
                  })
                  clicktime <<- Sys.time()
                })
@@ -925,22 +898,22 @@ server <- function(input, output, session) {
                {
                  # Update ECLI code
                  if(user() %in% users_who_code){
-                   eclis_to_code <- eclis_to_code[which(users_who_code == user())]
+                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
                  } else {
-                   eclis_to_code <- unique(eclis_to_code)
-                   users_who_code <- rep(user(), length(eclis_to_code))
+                   IDs_to_code <- unique(IDs_to_code)
+                   users_who_code <- rep(user(), length(IDs_to_code))
                  }
-                 if(ecli() %in% eclis_to_code & ecli() != eclis_to_code[1]){
-                   newecli <- eclis_to_code[which(eclis_to_code == ecli())-1]
+                 if(ID() %in% IDs_to_code & ID() != IDs_to_code[1]){
+                   newID <- IDs_to_code[which(IDs_to_code == ID())-1]
                  } else {
-                   newecli <- eclis_to_code[1]
+                   newID <- IDs_to_code[1]
                  }
-                 if(is.na(newecli)){
-                   newecli <- ecli()
+                 if(is.na(newID)){
+                   newID <- ID()
                  }
                  
                  isolate({
-                   updateTextInput(session, "ecli", value=newecli)
+                   updateTextInput(session, "ID", value=newID)
                  })
                  clicktime <<- Sys.time()
                })
@@ -950,21 +923,21 @@ server <- function(input, output, session) {
                  data_by_user <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE coded_by = '", user(), "'"))
                  
                  if(user() %in% users_who_code){
-                   eclis_to_code <- eclis_to_code[which(users_who_code == user())]
-                   eclis_to_code <- eclis_to_code[which(!eclis_to_code %in% data_by_user[which(!apply(data_by_user, 1, function(y) "NA" %in% y)),"ecli"])]
+                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
+                   IDs_to_code <- IDs_to_code[which(!IDs_to_code %in% data_by_user[which(!apply(data_by_user, 1, function(y) "NA" %in% y)),"ID"])]
                  } else {
-                   eclis_to_code <- unique(eclis_to_code)
-                   users_who_code <- rep(user(), length(eclis_to_code))
+                   IDs_to_code <- unique(IDs_to_code)
+                   users_who_code <- rep(user(), length(IDs_to_code))
                  }
                  
-                 newecli <- sample(eclis_to_code,1)
+                 newID <- sample(IDs_to_code,1)
                  
-                 if(is.na(newecli)){
-                   newecli <- ecli()
+                 if(is.na(newID)){
+                   newID <- ID()
                  }
                  
                  isolate({
-                   updateTextInput(session, "ecli", value=newecli)
+                   updateTextInput(session, "ID", value=newID)
                  })
                  
                  clicktime <<- Sys.time()
@@ -976,7 +949,7 @@ server <- function(input, output, session) {
                {
                  if(user() != "Sign in"){
                    coded <- dbGetQuery(con, paste0("SELECT ",
-                                                   paste("`", c("ecli", "date_coded_text", unique(variable_list$variable)),"`", collapse=",", sep=""),
+                                                   paste("`", c("ID", "date_coded_text", unique(variable_list$variable)),"`", collapse=",", sep=""),
                                                    " FROM ", data_set_name, " WHERE coded_by = '", user() , "'"))
                    
                    
@@ -986,20 +959,20 @@ server <- function(input, output, session) {
                    
                    n_cases <- paste0(length(which(apply(coded_TF, 1, sum)==ncol(coded_TF))),
                                      " of ",
-                                     length(eclis_to_code[which(users_who_code == user())]),
+                                     length(IDs_to_code[which(users_who_code == user())]),
                                      " cases coded (", 
-                                     round(length(which(apply(coded_TF, 1, sum)==ncol(coded_TF)))/length(eclis_to_code[which(users_who_code == user())])*100),
+                                     round(length(which(apply(coded_TF, 1, sum)==ncol(coded_TF)))/length(IDs_to_code[which(users_who_code == user())])*100),
                                      "%)")
                    
                    percentages <- round((apply(coded_TF, 1, sum)-4)/(ncol(coded_TF)-4)*100)
                    if(length(which(percentages < 100 & percentages > 30)) > 0){
-                     table <- data.frame(ecli=coded$ecli[which(percentages < 100 & percentages > 30)],
+                     table <- data.frame(ID=coded$ID[which(percentages < 100 & percentages > 30)],
                                          completion=paste0(percentages[which(percentages < 100 & percentages > 30)], "%"),
                                          `date`= gsub(" .*$", "", coded$date_coded_text[which(percentages < 100 & percentages > 30)]),
                                          `time`= gsub("^.* ", "", coded$date_coded_text[which(percentages < 100 & percentages > 30)])
                      )
                    } else {
-                     table <- data.frame(ecli="No cases appear to be partially completed",
+                     table <- data.frame(ID="No cases appear to be partially completed",
                                          completion="")
                    }
                    
@@ -1015,7 +988,7 @@ server <- function(input, output, session) {
                  }
                  else {
                    coded <- dbGetQuery(con, paste0("SELECT ",
-                                                   paste("`", c("ecli", "date_coded_text", "coded_by", "Not_applicable", unique(variable_list$variable)),"`", collapse=",", sep=""),
+                                                   paste("`", c("ID", "date_coded_text", "coded_by", "Not_applicable", unique(variable_list$variable)),"`", collapse=",", sep=""),
                                                    " FROM ", data_set_name))
                    
                    
