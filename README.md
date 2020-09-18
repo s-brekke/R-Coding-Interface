@@ -1,11 +1,10 @@
-# CJEU Coding Interface
+# R Shiny Coding Interface
 
-R Shiny based hand coding interface created for CJEU-related purposes. Can be converted into different use
-cases, provided that hard-coded references to ECLI numbers (ID codes used for CJEU case law) are changed.
+R Shiny based hand coding interface. Designed for CJEU related uses, but generalized to work for a number of scenarios.
 
-## Getting started 
+## Getting started
 Four tables need to be updated before you start coding, all of which are located in the **systemdata** folder. These
-tables are dependant on being stored in a csv format identical to the one they are presented in by default. 
+tables are dependant on being stored in a csv format identical to the one they are presented in by default.
 
 If you are in doubt or editing from excel, save your edited table as a .xlsx file rather than .csv, and make sure the
 *readxl* package is installed in R. The script will automatically identify the excel tables and work with these instead.
@@ -20,10 +19,10 @@ Configuration files. Use this to change the name of the data base or data table,
 SQLite. MySQL and MariaDB must be used if the app is uploaded to shinyapps.io.
 
 #### delegation.csv
-A list of ECLI numbers and the user names of the users who these cases are assigned to.
+A list of ID numbers and the user names of the users who these cases are assigned to.
 
 #### variable_list.xlsx / variable_list.csv
-A list of variable names, descriptions, and possible values. 
+A list of variable names, descriptions, and possible values.
 
 ### Make changes to interface
 After updating the variable list, these changes must be reflected in *interface.R*.
@@ -43,9 +42,12 @@ Before you start coding, you have to decide if you want to use MariaDB/MySQL or 
 a centralized server, while SQLite stores the data locally in the "data" folder (database.db).
 
 SQLite will automatically generate the relevant data base if correctly installed. For MySQL or MariaDB, please
-set up a data base separately before connecting.
+set up a data base separately before connecting. This data base needs to contain four columns:
 
-You will need to install the SQL server of your choice on your computer/server if this is not already done.
+1. ID: ID code for coded observations
+2. coded_by: user name of hand coders
+3. date_updated: `DATETIME`.
+4. completed: `BOOL`, preferably `DEFAULT 0`
 
 
 ### Run
@@ -56,11 +58,14 @@ You also need to install the following dependencies:
 ```R
 install.packages("shiny")
 install.packages("DBI")
-install.packages("readxl") # To read variable_list.xlsx
+install.packages("readxl") # To read variable_list.xlsx 
 install.packages("RSQLite") # For SQLite
-install.packages("RMySQL") # For RMySQL
+install.packages("RMariaDB") # For MariaDB
 ```
 
-Only run these commands once per computer.
+A working install of MySQL, MariaDB or SQLite is required for the interface to work.
 
-A working install of MySQL, MariaDB or SQLite is also required for the interface to work.
+
+## Contact
+Stein Arne Brekke, 2020
+stein[dot]brekke[at]eui[dot]eu

@@ -7,51 +7,45 @@
 #                                           __/ |                                         
 #                        EUI, 2020         |___/          Written by Stein Arne Brekke
 #
-# README:
-# Before you start coding, you have to decide if you want to use MariaDB/MySQL or SQLite. MariaDB/MySQL runs on
-# a centralized server, while SQLite stores the data locally.
-# 
-# You will need to install the SQL server of your choice on your computer/server if this is not already done.
-# 
-# You also need to install the following dependencies:
-# install.packages("shiny")
-# install.packages("DBI")
-# install.packages("RMySQL") # For RMySQL
-# install.packages("RSQLite") # For SQLite
-# Only run these commands once per computer.
-# 
-# Remember to update systemdata/users.csv, systemdata/config.csv and systemdata/delegation.csv before
 
 library(shiny)
 library(DBI)
 
-# Load config files
-# Todo: Make this dependant on the files existing, bug test
-variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE)
-users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
-delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE) 
-config <- read.csv(file.path("systemdata", "config.csv"), stringsAsFactors = FALSE)
-
-# Read config files if excel
+# # Load config files
+# # Read config files if excel
 if("readxl" %in% rownames(installed.packages())){
   library(readxl)
   if("delegation.xlsx" %in% list.files("systemdata")){
-    delegated_cases <- read_excel(file.path("systemdata","delegation.xlsx"))       
+    delegated_cases <- read_excel(file.path("systemdata","delegation.xlsx"))
     write.csv(delegated_cases, file.path("systemdata", "delegation.csv"), row.names = FALSE)
   }
   if("variable_list.xlsx" %in% list.files("systemdata")){
-    variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))       
+    variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))
     write.csv(variable_list, file.path("systemdata", "variable_list.csv"), row.names = FALSE)
   }
   if("users.xlsx" %in% list.files("systemdata")){
-    users <- read_excel(file.path("systemdata","users.xlsx"))       
+    users <- read_excel(file.path("systemdata","users.xlsx"))
     write.csv(users, file.path("systemdata", "users.csv"), row.names = FALSE)
   }
   if("config.xlsx" %in% list.files("systemdata")){
-    config <- read_excel(file.path("systemdata","config.xlsx"))       
+    config <- read_excel(file.path("systemdata","config.xlsx"))
     write.csv(config, file.path("systemdata", "config.csv"), row.names = FALSE)
   }
 }
+
+# To avoid error before functions load 
+user <- function(){return(NA)}
+ID <- function(){return(NA)}
+
+
+# Todo: Make this dependant on the files existing, bug test
+variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE)
+users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$username
+delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE) 
+delegated_cases <- delegated_cases[which(!is.na(delegated_cases$ID)),]
+config <- read.csv(file.path("systemdata", "config.csv"), stringsAsFactors = FALSE)
+
+
 rownames(config) <- config$setting
 config <- as.data.frame(t(config))[2,]
 
@@ -60,14 +54,19 @@ data_base_name <- as.character(config$data_base_name)
 data_set_name <- as.character(config$data_set_name)
 showguide <- as.logical(config$showguide)
 
+startcols <- c("ID", "coded_by", "date_updated", "completed")
 
 variable_list <- variable_list[which(!grepl("invisible value", variable_list$interpretation)),]
 
-columns <- c("ID", "coded_by", "date_coded", "date_coded_text", unique(variable_list$variable))
-
+columns <- unique(variable_list$variable)
+text_columns <- variable_list$variable[which(paste(variable_list$text) == "yes")]
 
 if(sql_type == "mysql"){
   library(RMariaDB)
+  
+  username <- as.character(config$username)
+  host <- as.character(config$host)
+  password <- as.character(config$password)
   
   # mariaDB or MySQL: Connect to server ####
   dbname <- data_base_name
@@ -76,13 +75,13 @@ if(sql_type == "mysql"){
                    username = username,
                    password = password)
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
-} else 
-{
+} else {
   library(RSQLite)
   con <- dbConnect(SQLite(), paste0(data_base_name, ".db"))
   if(!data_set_name %in% unlist(dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type = 'table'"))){
-    table <- as.data.frame(t(matrix(columns)))[0,]
-    colnames(table) <- columns
+    cols <- c(startcols, columns)
+    table <- as.data.frame(t(matrix(cols)))[0,]
+    colnames(table) <- cols
     dbWriteTable(con, data_set_name, table)
   }
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
@@ -92,31 +91,28 @@ if(sql_type == "mysql"){
 if(length(columns[which(!columns %in% colnames(outputdata))]) > 0){
   for(c in columns[which(!columns %in% colnames(outputdata))]){
     dbExecute(con, paste0("ALTER TABLE ", data_set_name, " ADD COLUMN ",
-                                paste(c, NA, "TEXT")))
+                          paste0("`", c, "`", "TEXT")))
+  }
+  outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
+}
+
+# Text variables:
+if(length(text_columns[which(!paste0(text_columns, "_TEXT") %in% colnames(outputdata))]) > 0){
+  for(c in text_columns[which(!paste0(text_columns, "_TEXT") %in% colnames(outputdata))]){
+    dbExecute(con, paste0("ALTER TABLE ", data_set_name, " ADD COLUMN ",
+                          paste0("`", paste0(c, "_TEXT"), "`", " TEXT")
+                          # # Paragraph and check box variables: (optional)
+                          # paste0("`", paste0(c, "_p1"), "`", " SMALLINT(4), "),
+                          # paste0("`", paste0(c, "_p2"), "`", " SMALLINT(4), "),
+                          # paste0("`", paste0(c, "_OP"), "`", " BOOL")
+                          ))
   }
   outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name))
 }
 
 
-
-# variable_list #####
-# Read variable_list from excel if possible
-if("readxl" %in% rownames(installed.packages())){                                 # can be cut
-  library(readxl)                                                                 # can be cut
-  variable_list <- read_excel(file.path("systemdata","variable_list.xlsx"))                 # can be cut
-  write.csv(variable_list, file.path("systemdata", "variable_list.csv"), row.names = FALSE) # can be cut
-} else {                                                                          # can be cut
-  variable_list <- read.csv(file.path("systemdata", "variable_list.csv"),  stringsAsFactors=FALSE)
-  users <- read.csv(file.path("systemdata", "users.csv"), stringsAsFactors = FALSE); rownames(users) <- users$usernames
-  delegated_cases <- read.csv(file.path("systemdata", "delegation.csv"), stringsAsFactors = FALSE) # KEEP THIS!
-}                                                                                 # can be cut
 variable_list <- variable_list[which(!grepl("invisible value", variable_list$interpretation)),]
 
-# Delegate cases to users
-
-
-IDs_to_code <- as.character(delegated_cases$ID)
-users_who_code <- as.character(delegated_cases$user)
 
 
 # variables <- unique(variable_list$variable)
@@ -137,13 +133,17 @@ fleeting_data_line <- outputdata[1,]
 
 last_write <- Sys.time()
 
-load(file.path("systemdata", "cjeu", "hyperlinks.rda"))
-# if(!"CJEU" %in% rownames(installed.packages())){
-load(file.path("systemdata", "cjeu", "Decisions.rda"))
-load(file.path("systemdata", "cjeu", "Cases.rda"))
-# }
-data <- Decisions
-data$title <- Cases$title[match(data$case, Cases$case)]
+# # CJEU data
+# load(file.path("systemdata", "cjeu", "hyperlinks.rda"))
+# # if(!"CJEU" %in% rownames(installed.packages())){
+# load(file.path("systemdata", "cjeu", "Decisions.rda"))
+# load(file.path("systemdata", "cjeu", "Cases.rda"))
+# # }
+# Decisions$title <- Cases$title[match(Decisions$case, Cases$case)] # Shouldn't be needed for much longer 
+# data <- Decisions
+
+IDs_to_code <- delegated_cases$ID
+users_who_code <- delegated_cases$user
 
 
 
@@ -228,12 +228,111 @@ radio_survey <- function(n,
     },
     if(paste(vars[n], "_TEXT", sep="") %in% colnames(outputdata)){
       textInput(paste(vars[n], "_TEXT", sep=""),
-                "Paste text snippet:",
+                "Comment:",
                 value=text_val,
                 placeholder = fillertext)
     },
     tags$hr()
   )
+}
+
+update_all <- function(session,
+                       ID,
+                       user){
+  
+  message("is.na(ID)")
+  message("is.na(user)")
+  if(!is.na(ID) & !is.na(user)){
+    
+    updateTextInput(session, "ID", value=ID)
+    
+    
+    # Insert new row if missing
+    if(nrow(dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE ID = '", ID, "' AND coded_by = '", user, "'"))) == 0){
+      dbExecute(con, paste0("INSERT INTO ", data_set_name, " (ID, coded_by) VALUES (?,?)"),
+                list(ID, user))
+    }
+    outputdata <- dbGetQuery(con, paste0("SELECT * FROM ",data_set_name, " WHERE `ID` = '", ID,  "' AND `coded_by` = '", as.character(user), "'"))
+    
+    
+    for(t in text_variables){
+      message(t)
+      isolate({
+        updateTextAreaInput(session, 
+                            t,
+                            value=outputdata[, t])
+      })
+    }
+    for(radio in radios){
+      message(radio)
+      if(TRUE %in% grepl("pre-filled", variable_list$interpretation[which(variable_list$variable == radio)])){
+        default_channel <- variable_list$value[which(variable_list$variable == radio & grepl("pre-filled", variable_list$interpretation))]
+      } else {
+        default_channel <- "NA"
+      }
+      channel <- paste(outputdata[,radio])
+      
+      if(grepl("multichoice", variable_list$interpretation[which(variable_list$variable == radio)[1]])){
+        updateCheckboxGroupInput(session,
+                                 radio,
+                                 selected = unlist(strsplit(channel, ",")))
+      } else {
+        updateRadioButtons(session,
+                           radio,
+                           selected = channel)
+      }
+      
+      if(paste(radio, "_OP", sep="") %in% colnames(outputdata)){
+        operative_part <- ifelse(!ID %in% outputdata$ID,
+                                 "FALSE",
+                                 paste(outputdata[,paste(radio, "_OP", sep="")]) == TRUE)
+        updateCheckboxInput(session,
+                            paste(radio, "_OP", sep=""),
+                            value=as.logical(operative_part))
+      }
+      
+      isolate({
+        # message(radio)
+        
+        if(paste0(radio, "_TEXT") %in% colnames(outputdata)){
+          setvalue <- ifelse(is.na(outputdata[, paste(radio, "_TEXT", sep="")]),
+                             "",
+                             outputdata[, paste(radio, "_TEXT", sep="")])
+          # message("t-", radio, ": ", setvalue)
+          updateTextInput(session,
+                          paste(radio, "_TEXT", sep=""),
+                          value=isolate(setvalue))
+        }
+        
+        if(paste0(radio, "_p1") %in% colnames(outputdata)){
+          setvalue <- ifelse(is.na(outputdata[, paste(radio, "_p1", sep="")]),
+                             "",
+                             outputdata[, paste(radio, "_p1", sep="")])
+          # message("p1-", radio, ": ", setvalue)
+          updateNumericInput(session,
+                             paste(radio, "_p1", sep=""),
+                             value=isolate(setvalue))
+          
+          setvalue <- ifelse(is.na(outputdata[, paste(radio, "_p2", sep="")]),
+                             "",
+                             outputdata[, paste(radio, "_p2", sep="")])
+          # message("p2-", radio, ": ", setvalue)
+          updateNumericInput(session,
+                             paste(radio, "_p2", sep=""),
+                             value=isolate(setvalue))
+          
+          setvalue <- ifelse(is.na(outputdata[, paste(radio, "OP", sep="_")]),
+                             "",
+                             outputdata[, paste(radio, "OP", sep="_")])
+          # message("p2-", radio, ": ", setvalue)
+          updateCheckboxInput(session,
+                              paste(radio, "_OP", sep=""),
+                              value=isolate(setvalue))
+        }
+      })
+    }
+  }
+  return(Sys.time())
 }
 
 
@@ -256,10 +355,9 @@ user_new <- NA
 
 # First user interface:
 ui <- fluidPage(
-  
   # Application title
   tags$a(name="top"),
-  titlePanel("Coding interface"),
+  titlePanel("Free movement of persons"),
   
   # Sidebar with case info
   sidebarLayout(
@@ -271,58 +369,65 @@ ui <- fluidPage(
                                           outputdata$coded_by == paste(user_new))], "")[1],
                 placeholder = "Please sign in before starting"),
       
-      tags$div(actionButton("previouscase", "<= previous", width="40%"),
+      tags$div(actionButton("previouscase", "< previous", width="40%"),
                
-               actionButton("randomcase", "?", width="15%"),
+               # actionButton("randomcase", "?", width="15%"),
+               actionButton("update", "^", width="15%"),
                
-               actionButton("nextcase", "next =>", width="40%"),
+               actionButton("nextcase", "next >", width="40%"),
                style="display:inline-block; width:100%"),
       
       
       tags$h3(textOutput("title")),
       
-      tags$i(uiOutput("url")), 
-      
-      tags$div(tags$b("Case:"),
-               style="display:inline-block"),
-      tags$div(textOutput("casenumber"),
-               style="display:inline-block"),
-      tags$br(),
-      tags$div(tags$b("ECLI:"),
-               style="display:inline-block"),
-      tags$div(textOutput("IDnumber"),
-               style="display:inline-block"),
-      tags$br(),
-      
-      tags$div(tags$b("CELEX:"),
-               style="display:inline-block"),
-      tags$div(textOutput("celex"),
-               style="display:inline-block"),
-      tags$br(),
-      
-      tags$i(uiOutput("docinfo")), 
-      
-      tags$b("Subject matter:"),
-      textOutput("subject_matter"),
-      
-      tags$b("Date of lodging:"),
-      textOutput("lodged"),
-      
-      tags$b("Date of document:"),
-      textOutput("published"),
+      # # CJEU metadata
+      # tags$i(uiOutput("url")), 
+      # 
+      # tags$div(tags$b("Case:"),
+      #          style="display:inline-block"),
+      # tags$div(textOutput("casenumber"),
+      #          style="display:inline-block"),
+      # tags$br(),
+      # tags$div(tags$b("ECLI:"),
+      #          style="display:inline-block"),
+      # tags$div(textOutput("IDnumber"),
+      #          style="display:inline-block"),
+      # tags$br(),
+      # 
+      # tags$div(tags$b("CELEX:"),
+      #          style="display:inline-block"),
+      # tags$div(textOutput("celex"),
+      #          style="display:inline-block"),
+      # tags$br(),
+      # 
+      # tags$i(uiOutput("docinfo")), 
+      # 
+      # tags$b("Subject matter:"),
+      # textOutput("subject_matter"),
+      # 
+      # tags$b("Date of lodging:"),
+      # textOutput("lodged"),
+      # 
+      # tags$b("Date of document:"),
+      # textOutput("published"),
       
       tags$b("Last updated:"),
       textOutput("last_update"),
       
-
-      selectInput("user", "User:", c(users$usernames)),
+      
+      selectInput("user", "User:", c(users$username)),
       textOutput("username"),
       actionButton("signin", "Sign in"),
       tags$hr(),
       div(HTML(headlinelinks)),
       tags$hr(), # ONLY ONLINE
-      actionButton("submit", "Save"),
-      actionButton("statistics", "User statistics"),
+      
+      # checkboxInput("notFMP", "This case is not free movement of persons"),
+      # checkboxInput("secondary", HTML("This case is not <i>primarily</i> free movement of persons, and should not be coded as such")),
+      actionButton("confirm", "Confirm"),
+      tags$hr(),
+      # actionButton("submit", "Save"),
+      # actionButton("statistics", "User statistics"),
       downloadButton("downloadData", "Download data")
       
       # tags$p("For online users:"), # ONLY ONLINE
@@ -333,13 +438,7 @@ ui <- fluidPage(
     ),
     
     
-    # Main panel for the hand coders:
     mainPanel(
-      
-      # THIS IS WHERE IT HAPPENS:
-      # add one radio_survey (multiple choice) or textAreaInput (text variable) for every variable
-      # in variable_list.csv
-      
       tags$div(uiOutput("completed")), 
       
       radio_survey(1),
@@ -347,10 +446,11 @@ ui <- fluidPage(
       radio_survey(3),
       radio_survey(4),
       radio_survey(5),
+      radio_survey(6),
       
       tags$hr(),
       
-      actionButton("submit2", "Save"),
+      # actionButton("submit2", "Save"), # saving is fully automated
       actionButton("timer", "Show timer"),
       tags$br(),
       a("Click here to return to the top", href="#top", name="End"),
@@ -365,9 +465,9 @@ server <- function(input, output, session) {
   
   # # Collect "ID". Universal variables have to be defined as reactive functions.
   # # If CJEU document:
-  # ID <- reactive(Decisions$ecli[which(Decisions$ecli == gsub("^\\W*|\\W*$", "", input$ID) |
+  # ID <- reactive(Decisions$ID[which(Decisions$ID == gsub("^\\W*|\\W*$", "", input$ID) |
   #                                         Decisions$celex == gsub("^\\W*|\\W*$", "", input$ID) |
-  #                                         Decisions$case == gsub("^(\\d+/)", "C-\\1", gsub("^\\W*|\\W*$", "", input$ID)) & 
+  #                                         Decisions$case == gsub("^(\\d+/)", "C-\\1", gsub("^\\W*|\\W*$", "", input$ID)) &
   #                                         Decisions$type == "Judgment"
   # )][1])
   # # Else:
@@ -375,6 +475,56 @@ server <- function(input, output, session) {
   
   user <- eventReactive(input$signin, {
     input$user
+  })
+  
+  observeEvent(input$confirm, {
+    if(!is.na(ID())){
+      # if(input$notFMP){
+      #   x <- dbExecute(con, paste0("UPDATE policy_areas SET `FMP` = 'no', `date_of_coding` = ? WHERE `ID` = ?"),
+      #                  list(as.character(Sys.Date()), ID()))
+      #   dbExecute(con, "DELETE FROM ", data_set_name, " WHERE `ID` = ?", list(ID()))
+      #   showNotification(paste("Noted! Please press 'Next case' to continue. :)"),
+      #                    duration=10)
+      # }
+      # if(input$secondary){
+      #   x <- dbExecute(con, paste0("UPDATE policy_areas SET `FMP` = 'secondary', `date_of_coding` = ? WHERE `ID` = ?"),
+      #                  list(as.character(Sys.Date()), ID()))
+      #   dbExecute(con, "DELETE FROM ", data_set_name, " WHERE `ID` = ?", list(ID()))
+      #   showNotification(paste("Noted! Please press 'Next case' to continue. :)"),
+      #                    duration=10)
+      # }
+      # if(!input$notFMP & !input$secondary){
+        
+        columns <- NULL
+        values <- NULL
+        
+        for(r in colnames(outputdata)[5:ncol(outputdata)]){
+          if(!is.null(eval(parse(text=paste("input$", r, sep=""))))){
+            value <- eval(parse(text=paste("paste(input$", r, ", collapse=\",\")", sep="")))
+          } else {
+            value <- NA
+          }
+          
+          values <- c(values, value)
+        }
+        values[which(values == "NA")] <- NA
+        columns <- colnames(outputdata)
+        values <- c(ID(), user(), as.character(Sys.Date()), as.numeric(!(TRUE %in% is.na(values))), values)
+        values[grep("_OP", columns)] <- as.numeric(values[grep("_OP", columns)])
+        
+        # Update SQL
+        
+        dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = ? ", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
+                  as.list(c(values, ID(), user())))
+        
+        dbExecute(con, paste0(" DELETE FROM ", data_set_name, " WHERE `coded_by` = ? AND `date_updated` IS NULL"),
+                  list(user()))
+        showNotification(paste("Saved!"),
+                         duration=10)
+        
+        
+      # }
+    }
   })
   
   # On sign in: Load data
@@ -397,21 +547,31 @@ server <- function(input, output, session) {
       }
     }
     
+    dbExecute(con, paste0(" DELETE FROM ", data_set_name, " WHERE `coded_by` = ? AND `date_updated` IS NULL"),
+              list(user()))
+    
     x <- which(users$username == user())
     
-    newest <- dbGetQuery(con, paste0("SELECT ID,date_coded,date_coded_text FROM ", data_set_name, " WHERE coded_by = '", as.character(user()) , "'"))
-    if(length(na.omit(newest$date_coded)) > 0){
-      newest <- newest$ID[which(newest$date_coded == max(newest$date_coded, na.rm = TRUE))][1]
+    load_data <- dbGetQuery(con, paste0("SELECT ID, date_updated FROM ", data_set_name, " WHERE coded_by = '", as.character(user()) , "'"))
+    if(length(na.omit(load_data$date_updated)) > 0){
+      newest <- load_data$ID[which(load_data$date_updated == max(load_data$date_updated, na.rm = TRUE))][1]
     } else {
-      newest <- ID()
+      # newest <- sample(IDs_to_code[which(!IDs_to_code %in% dbGetQuery(con, "SELECT `ID` FROM ", data_set_name, "")$ID)], 1)
+      newest <- IDs_to_code[which(users_who_code == user())][1]
     }
-    updateTextInput(session, "ID", value="loading...")
+    # if(is.na(newest)){
+    #   newest <- sample(IDs_to_code[which(!IDs_to_code %in% dbGetQuery(con, "SELECT `ID` FROM ", data_set_name, "")$ID)], 1)
+    # }
+    # updateTextInput(session, "ID", value="loading...")
     loadID <- newest
-    if(is.na(loadID)){
-      loadID <- IDs_to_code[which(users_who_code == user())][1]
-    }
-    updateTextInput(session, "ID", value=loadID)
-    message("loaded ", loadID)
+    message("New ID: ", newest)
+    # if(nrow(load_data) == 0){
+    #   loadID <- sample(IDs_to_code[which(!IDs_to_code %in% dbGetQuery(con, "SELECT `ID` FROM ", data_set_name, "")$ID)], 1)
+    # }
+    isolate(
+      clicktime <<- update_all(session, ID=loadID, user=user())
+    )
+    message("loaded ", input$ID)
     
     output$username <- renderText({
       name <- isolate(users$name[which(users$username == user())])
@@ -429,269 +589,161 @@ server <- function(input, output, session) {
     
   })
   
-  # Descriptive variables ####
-  # URL and type
-  output$url <- renderUI({
-    url <- NA
-    if(ID() %in% hyperlinks$ID){ 
-      url <- hyperlinks$url[which(hyperlinks$ID == ID())][1]
-    }
-    if(!grepl("doclang=en", paste(url), ignore.case = TRUE)){
-      url <- paste("http://curia.europa.eu/juris/liste.jsf?critereEcli=", ID(), sep="")
-    }
-    hyperlink <- a(paste(unique(unlist(data$type[which(data$ID==ID())])), collapse=", "),
-                   href=url,
-                   target="blank")
-    tagList(hyperlink)
-  })
-  
-  output$q4 <- renderUI({
-    q <- 4 # TYPEDEF
-    if(input$DEF == 1){
-      if(length(x) > 0){
-        div(
-          radio_survey(q,
-                       select = ifelse(fleeting_data_line[, radios[q]] == -888, "NA", paste(fleeting_data_line[, radios[q]])),
-                       p1_val = fleeting_data_line[, paste(radios[q], "p1", sep="_")],
-                       p2_val = fleeting_data_line[, paste(radios[q], "p2", sep="_")],
-                       op_val = as.logical(fleeting_data_line[, paste(radios[q], "OP", sep="_")]),
-                       text_val = fleeting_data_line[, paste(radios[q], "TEXT", sep="_")]
-          ),
-          style="margin-left: 40px;")
-      } else {
-        div(
-          radio_survey(q),
-          style="margin-left: 40px;")
-      }
-    }
-  })
-  
-  # output$case_not_applicable <- renderUI({
-  #   if(input$Not_applicable){
-  #     textAreaInput("Why_not_applicable", label="Why?", placeholder="Please briefly explain why the case is not applicable", 
-  #                   value=gsub("^NA$", "", paste(outputdata$Why_not_applicable)))
+  # # CJEU descriptive variables ####
+  # # URL and type
+  # output$url <- renderUI({
+  #   url <- NA
+  #   if(ID() %in% hyperlinks$ID){ 
+  #     url <- hyperlinks$url[which(hyperlinks$ID == ID())][1]
+  #   }
+  #   if(!grepl("doclang=en", paste(url), ignore.case = TRUE)){
+  #     url <- paste("http://curia.europa.eu/juris/liste.jsf?critereEcli=", ID(), sep="")
+  #   }
+  #   hyperlink <- a(paste(unique(unlist(data$type[which(data$ID==ID())])), collapse=", "),
+  #                  href=url,
+  #                  target="blank")
+  #   tagList(hyperlink)
+  # })
+  # 
+  # output$docinfo <- renderUI({
+  #   url <- NA
+  #   # if(ID() %in% blankdata$ID){ # Create list of URLs somewhere else - master data, rather 
+  #   #   url <- blankdata$url[which(blankdata$ID == ID())]
+  #   # } 
+  #   if(!is.na(ID())){
+  #     url <- paste("https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=ID:", ID(), sep="")
+  #     hyperlink1 <- a("Document information; ",
+  #                     href=url,
+  #                     target="blank")
+  #     url <- paste("https://eur-lex.europa.eu/legal-content/EN/SUM/?uri=ID:", ID(), sep="")
+  #     hyperlink2 <- a(" Summary",
+  #                     href=url,
+  #                     target="blank")
+  #     tagList(hyperlink1, hyperlink2)
   #   }
   # })
-  
-  output$q6 <- renderUI({
-    q <- 6 # TYPEDEFOP
-    if(input$DEFOP == 1){
-      if(length(x) > 0){
-        div(
-          radio_survey(q,
-                       select = ifelse(fleeting_data_line[, radios[q]] == -888, "NA", paste(fleeting_data_line[, radios[q]])),
-                       p1_val = fleeting_data_line[, paste(radios[q], "p1", sep="_")],
-                       p2_val = fleeting_data_line[, paste(radios[q], "p2", sep="_")],
-                       op_val = as.logical(fleeting_data_line[, paste(radios[q], "OP", sep="_")]),
-                       text_val = fleeting_data_line[, paste(radios[q], "TEXT", sep="_")]
-          ),
-          style="margin-left: 40px;")
-      } else {
-        div(
-          radio_survey(q),
-          style="margin-left: 40px;")
-      }
-    }
-  })
-  output$q24 <- renderUI({
-    q <- 24 # DEFEX2
-    
-    if(!input$DEFEX1 %in% c("0", "NA")){
-      if(length(x) > 0){
-        div(
-          radio_survey(q,
-                       select = ifelse(fleeting_data_line[, radios[q]] == -888, "NA", paste(fleeting_data_line[, radios[q]])),
-                       p1_val = fleeting_data_line[, paste(radios[q], "p1", sep="_")],
-                       p2_val = fleeting_data_line[, paste(radios[q], "p2", sep="_")],
-                       op_val = as.logical(fleeting_data_line[, paste(radios[q], "OP", sep="_")]),
-                       text_val = fleeting_data_line[, paste(radios[q], "TEXT", sep="_")]
-          ),
-          style="margin-left: 40px;")
-      } else {
-        div(
-          radio_survey(q),
-          style="margin-left: 40px;")
-      }
-    }
-  })
-  
-  output$docinfo <- renderUI({
-    url <- NA
-    # if(ID() %in% blankdata$ID){ # Create list of URLs somewhere else - master data, rather 
-    #   url <- blankdata$url[which(blankdata$ID == ID())]
-    # } 
-    if(!is.na(ID())){
-      url <- paste("https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=ID:", ID(), sep="")
-      hyperlink1 <- a("Document information; ",
-                      href=url,
-                      target="blank")
-      url <- paste("https://eur-lex.europa.eu/legal-content/EN/SUM/?uri=ID:", ID(), sep="")
-      hyperlink2 <- a(" Summary",
-                      href=url,
-                      target="blank")
-      tagList(hyperlink1, hyperlink2)
-    }
-  })
-  
-  
-  output$subject_matter <- renderText({
-    paste(unique(unlist(data$subject_matter[which(data$ID==ID())])), collapse=", ")
-  })
-  
-  output$IDnumber <- renderText({
-    ID()
-  })
-  output$casenumber <- renderText({
-    Decisions$case[which(Decisions$ecli == ID())]
-  })
-  
-  output$celex <- renderText({
-    Decisions$celex[which(Decisions$ecli == ID())]
-  })
-  
-  # This function updates most things, not just the title
+  # 
+  # output$subject_matter <- renderText({
+  #   paste(unique(unlist(data$subject_matter[which(data$ID==ID())])), collapse=", ")
+  # })
+  # 
+  # output$IDnumber <- renderText({
+  #   ID()
+  # })
+  # output$casenumber <- renderText({
+  #   Decisions$case[which(Decisions$ID == ID())]
+  # })
+  # 
+  # output$celex <- renderText({
+  #   Decisions$celex[which(Decisions$ID == ID())]
+  # })
+  # 
+  # 
   output$title <- renderText({
     
     
-    if(user() == "Sign in"){
-      updateTextInput(session, "ID", value="Please sign in before starting")
-    } else {
-      
-      outputdata <- dbGetQuery(con, paste0("SELECT * FROM ",data_set_name, " WHERE `ID` = '", ID(),  "' AND `coded_by` = '", as.character(user()), "'"))
-      
-      # Insert new row if missing
-      if(nrow(dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE ID = '", ID(), "' AND coded_by = '", user(), "'"))) == 0){
-        dbExecute(con, paste0("INSERT INTO ", data_set_name, " (ID, coded_by) VALUES (?,?)"),
-                  list(ID(), user()))
-      }
-      
-      # message("Loaded: ", outputdata$ID[1], " as ", outputdata$coded_by[1])
-      # message(paste(colnames(outputdata), collapse=", "))
-      
-      for(t in text_variables){
-        isolate({
-          updateTextAreaInput(session, 
-                              t,
-                              value=outputdata[, t])
-        })
-      }
-      clicktime <<- Sys.time()
-      
-      updateCheckboxInput(session,
-                          "Not_applicable",
-                          value=(paste(outputdata$Not_applicable) == TRUE))
-      # Update radio boxes
-      for(radio in radios){
-        if(TRUE %in% grepl("pre-filled", variable_list$interpretation[which(variable_list$variable == radio)])){
-          default_channel <- variable_list$value[which(variable_list$variable == radio & grepl("pre-filled", variable_list$interpretation))]
-        } else {
-          default_channel <- "NA"
-        }
-        channel <- paste(outputdata[,radio])
-        
-        if(grepl("multichoice", variable_list$interpretation[which(variable_list$variable == radio)[1]])){
-          updateCheckboxGroupInput(session,
-                                   radio,
-                                   selected = unlist(strsplit(channel, ",")))
-        } else {
-          updateRadioButtons(session,
-                             radio,
-                             selected = channel)
-        }
-        
-        if(paste(radio, "_OP", sep="") %in% colnames(outputdata)){
-          operative_part <- ifelse(!ID() %in% outputdata$ID,
-                                   "FALSE",
-                                   paste(outputdata[,paste(radio, "_OP", sep="")]) == TRUE)
-          updateCheckboxInput(session,
-                              paste(radio, "_OP", sep=""),
-                              value=as.logical(operative_part))
-        }
-        
-        isolate({
-          if(!is.null(eval(parse(text=paste("input$", radio, "_TEXT", sep=""))))){
-            setvalue <- ifelse(is.na(outputdata[, paste(radio, "_TEXT", sep="")]),
-                               "",
-                               outputdata[, paste(radio, "_TEXT", sep="")])
-            updateTextInput(session,
-                            paste(radio, "_TEXT", sep=""),
-                            value=isolate(setvalue))
-          }
-          if(!is.null(eval(parse(text=paste("input$", radio, "_p1", sep=""))))){
-            
-            setvalue <- ifelse(is.na(outputdata[, paste(radio, "_p1", sep="")]),
-                               "",
-                               outputdata[, paste(radio, "_p1", sep="")])
-            updateNumericInput(session,
-                               paste(radio, "_p1", sep=""),
-                               value=isolate(setvalue))
-            setvalue <- ifelse(is.na(outputdata[, paste(radio, "_p2", sep="")]),
-                               "",
-                               outputdata[, paste(radio, "_p2", sep="")])
-            updateNumericInput(session,
-                               paste(radio, "_p2", sep=""),
-                               value=isolate(setvalue))
-          }
-        })
-      }
-    }
+    # if(paste(user()) == "Sign in" | is.na(ID())){
+    #   updateTextInput(session, "ID", value="Please sign in before starting")
+    # } 
+    # else {
+    #   clicktime <<- update_all(session, ID = ID(), user=user())
+    # }
     
     # updateTextInput(session, "firstpar_feedback", value=outputdata$firstpar[])
     # updateTextInput(session, "note", value=outputdata$note[])
-    data$title[which(data$ID==ID())]
+    if(is.na(ID())){
+      "No case loaded"
+    } else {
+      ID()
+      # data$title[which(data$ID==ID())]
+    }
   })
   
   output$completed <- renderUI({
-    
+    message("Updating ", Sys.time())
     if(!exists("lastmissings")){
       lastmissings <- 0
       lastID <- "missing"
     }
+    # message(2)
     if(!exists("lastID2")){
       lastID2 <- "missing"
     }
-    
+    # message(3)
     outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE `ID` = '", ID(),  "' AND `coded_by` = '", user(), "'"))
     
     fleeting_data_line <<- outputdata #this solution is UGLY - but helps load optional fields
     
-    case_complete <- NULL
+    # message("ID: ", ID())
+    # message("last: ", lastID2)
+    # message(user())
     
-    for(radio in radios){
+    message("hi")
+    
+    case_complete <- NULL
+    for(radio in vars){
       case_complete <- c(case_complete, !TRUE %in% eval(parse(text=paste("c(input$", radio, "[1] == \"NA\", is.null(input$", radio, "))",  sep=""))))
+      # message(radio, " - ", case_complete[length(case_complete)])
     }
+    if(is.na(ID()) | is.na(user()) | paste(lastID2) != paste(ID())){
+      
+      if(paste(outputdata$completed[1]) == "1"){
+        case_complete <- rep(TRUE, length(vars))
+      } else {
+        case_complete <- rep(FALSE, length(vars))
+      }
+      message("Not checking for completed case")
+      
+      if(paste(ID()) != input$ID & !is.na(user())){
+        isolate(
+          clicktime <<- update_all(session, ID=ID(), user=user())
+        )
+      }
+    }
+    
     if(!is.na(ID()) & !is.na(user()) & paste(lastID2) == paste(ID())){
       
-      # Reconnect if connection to server is lost
+      if(paste(ID()) != input$ID & !is.na(user())){
+        isolate(
+          clicktime <<- update_all(session, ID=ID(), user=user())
+        )
+      }
+      # if(nrow(dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE ID = ? AND coded_by = ?")), list(ID(), user())) == 0){
+      #   dbExecute(con, paste0("INSERT INTO ", data_set_name, " (ID, coded_by) VALUES (?,?)"),
+      #             list(ID(), user()))
+      # }
       
       # Save on the go:
       colnames <- colnames(outputdata)[5:ncol(outputdata)]
-      
+      message("1")
       in_input <- lapply(colnames, function(y) 
         eval(parse(text=paste0("input$", y)))
       )
-      
       colnames <- colnames[which(!unlist(lapply(in_input, is.null)))]
+      
       in_input <- as.character(unlist(lapply(in_input[which(!unlist(lapply(in_input, is.null)))], function(y) paste(y, collapse = ","))))
       
-      
-      
       in_output  <- outputdata[,colnames]
+      message("2")
       # in_input <- dbEscapeStrings(con, in_input)
-      in_input <- in_input
+      # in_input <- in_input
       
       x <- which(paste(in_output[colnames]) != paste(in_input))
-      
-      
+      message("3")
+      message(clicktime)
       if(length(x) > 0 & Sys.time()-1 > clicktime){
+        message("4")
         if(TRUE %in% c(in_input[x] == "NA" & grepl("\\d", paste(in_output[x])))){
           showNotification(paste("WARNING: Attempting to overwrite previously recorded data with NA values.
-        Automatic saving is disabled.
+        Automatic saving is disabled. 
+        _____________________________ 
+        This might have been caused by entering a new case number manually without pressing '↻'. 
+        If this is the case, open this case again by pressing '←' and then '→'.
         _____________________________
         Please reload the page to continue coding.
         _____________________________
-        Press the 'Save' button to override. THIS WILL CAUSE LOSS OF DATA"),
-                           duration=15)
+        Press the 'Confirm' button to override if you are intentionally coding NA value."),
+                           duration=15, type="warning")
         } else {
           
           if(last_write < (Sys.time()-200)){
@@ -699,7 +751,7 @@ server <- function(input, output, session) {
             # Reconnect to server in case of time out
             if(sql_type == "mysql"){
               try(dbDisconnect(con), silent=TRUE)
-              con <<- dbConnect(MySQL(), host = host,
+              con <<- dbConnect(MariaDB(), host = host,
                                 dbname = dbname,
                                 username = username,
                                 password = password)
@@ -708,8 +760,10 @@ server <- function(input, output, session) {
             }
           }
           
-          variables <- c(colnames[x], "date_coded", "date_coded_text")
-          values <- c(in_input[x], Sys.time(), as.character(Sys.time()))
+          # add completed 
+          variables <- c(colnames[x], "date_updated")
+          values <- c(in_input[x], as.character(Sys.time()))
+          values[grep("_OP", variables)] <- as.numeric(as.logical(values[grep("_OP", variables)]))
           
           # message("user: ", user())
           dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", variables, "` = ?", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
@@ -717,9 +771,9 @@ server <- function(input, output, session) {
           
           
           returned <- "no connection"
-          returned <- try(dbGetQuery(con, paste0("SELECT `", variables[1], "` FROM ", data_set_name, " WHERE `ID` = ? AND `coded_by` = ?"),
-                                                 list(ID(), user())),
-                          silent=TRUE)
+          try(returned <- dbGetQuery(con, paste0("SELECT `", variables[1], "` FROM ", data_set_name, " WHERE `ID` = ? AND `coded_by` = ?"),
+                                     list(ID(), user())),
+              silent=TRUE)
           
           if(returned  != values[1]){
             showNotification(paste("An error appears to have ocurred when saving the data. If the problem persists, please try reloading the page. If that doesn't help, please send me (Stein Arne) an email about it. :)"),
@@ -729,28 +783,39 @@ server <- function(input, output, session) {
           }
         }
       }
-      
+      message("5")
       # message(paste(colnames[which(paste(in_output[colnames]) != paste(in_input))], collapse = ", "))
     }
     lastID2 <<- ID()
     
-    isolate({
-      updateActionButton(session, "submit", label="Save")
-      updateActionButton(session, "submit2", label="Save")
-    })
-    
+    # isolate({
+    #   updateActionButton(session, "submit", label="Save")
+    #   updateActionButton(session, "submit2", label="Save")
+    # })
+    message("6")
     if(all(case_complete)){
+      if(paste(outputdata$completed) != "1"){
+        message("Complete!")
+        dbExecute(con, paste0("UPDATE ", data_set_name, " SET `completed` = 1 WHERE `ID` = ? AND `coded_by` = ?"),
+                  list(ID(), user()))
+      }
       div(
         p("Case completed!", style="color:green; text-align:center; font-size:30px;"),
         p("No missing values found in this case", style="color:green; text-align:center; font-size:15px; font-style:italic;"))
     } else {
+      message("7")
+      if(paste(outputdata$completed[1]) == "1"){
+        dbExecute(con, paste0("UPDATE ", data_set_name, " SET `completed` = 0 WHERE `ID` = ? AND `coded_by` = ?"),
+                  list(ID(), user()))
+      }
+      message("7.1: ", length(which(!case_complete)) < 6)
       if(length(which(!case_complete)) < 6){
         
         lastmissings <<- length(which(!case_complete))
         lastID <<- ID()
         div(
           p("Almost done!", style="color:orange; text-align:center; font-size:30px;"),
-          p(paste("Still missing:", paste(variable_list$variable_name[match(radios[which(!case_complete)], variable_list$variable)], collapse=", ")),
+          p(paste("Still missing:", paste(variable_list$variable_name[match(vars[which(!case_complete)], variable_list$variable)], collapse=", ")),
             style="color:orange; text-align:center; font-size:15px; font-style:italic;"))
       } else {
         if(is.na(ID())){
@@ -771,6 +836,7 @@ server <- function(input, output, session) {
           #   #   p("I am completely changing how data is stored, please wait. Sorry about the inconvenience.", style="color:red; text-align:center; font-size:15px; font-style:italic;"))
           #   ""
           # }
+          message(7.2)
           ""
         }
       }
@@ -778,7 +844,7 @@ server <- function(input, output, session) {
   })
   
   output$last_update <- renderText({
-    paste0(dbGetQuery(con, paste0("SELECT `date_coded_text` FROM ", data_set_name, " WHERE `ID` = '", ID(), "' AND `coded_by` = '", user(), "'")))
+    paste0(dbGetQuery(con, paste0("SELECT `date_updated` FROM ", data_set_name, " WHERE `ID` = '", ID(), "' AND `coded_by` = '", user(), "'")))
   })
   
   output$published <- renderText({
@@ -795,156 +861,135 @@ server <- function(input, output, session) {
     }
   )
   
-  # # Early XML test
-  # output$firstpar <- renderText({
-  #   firstpar <- getPar(ID(), "1")
-  #   ifelse(is.na(firstpar), "First paragraph not found.", firstpar)
-  # })
-  
-  # Save data and manouver through cases: ####
-  
-  
-  observeEvent(input$submit,
-               {
-                 if(!is.na(ID())){
-                   
-                   columns <- NULL
-                   values <- NULL
-                   
-                   for(r in colnames(outputdata)[5:ncol(outputdata)]){
-                     if(!is.null(eval(parse(text=paste("input$", r, sep=""))))){
-                       value <- eval(parse(text=paste("paste(input$", r, ", collapse=\",\")", sep="")))
-                     } else {
-                       value <- "NA"
-                     }
-                     
-                     columns <- c(columns, r)
-                     values <- c(values, value)
-                   }
-                   
-
-                   # Update SQL
-                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = ? ", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
-                             as.list(c(values, ID(), user())))
-                   
-                   updateActionButton(session, "submit", label="Saved!")
-                 }
-               })  
-  
-  observeEvent(input$submit2,
-               {
-                 if(!is.na(ID())){
-                   broken_radios <- NULL
-                   if(input$DEF == 0){broken_radios <- c(broken_radios, "TYPEDEF")}
-                   if(input$DEFOP == 0){broken_radios <- c(broken_radios, "TYPEDEFOP")}
-                   if(input$DEFEX1 == 0){broken_radios <- c(broken_radios, "DEFEX2")}
-                   
-                   columns <- NULL
-                   values <- NULL
-                   
-                   for(r in colnames(outputdata)[grepl("[[:upper:]]", colnames(outputdata))]){
-                     if(!is.null(eval(parse(text=paste("input$", r, sep=""))))){
-                       value <- eval(parse(text=paste("paste(input$", r, ", collapse=\",\")", sep="")))
-                       if(r %in% broken_radios){
-                         value <- "-888"
-                       }
-                     } else {
-                       value <- "NA"
-                     }
-                     
-                     columns <- c(columns, r)
-                     values <- c(values, value)
-                   }
-                   
-                   
-                   # Update SQL
-                   dbExecute(con, paste0("UPDATE ", data_set_name, " SET ", paste0("`", columns, "` = ?", collapse = ", "), " WHERE `ID` = ? AND `coded_by` = ?"),
-                             as.list(c(values, ID(), user())))
-                   
-                   
-                   updateActionButton(session, "submit2", label="Saved!")
-                 }
-               })  
-  
   observeEvent(input$nextcase,
                {
-                 
-                 # message("From ", ID())
-                 
-                 if(user() %in% users_who_code){
-                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
+                 newID <- NA
+                 IDs <- IDs_to_code[which(users_who_code == user())]
+                 message("newID")
+                 if(is.na(ID())){
+                   newID <- IDs[1]
                  } else {
-                   IDs_to_code <- unique(IDs_to_code)
-                   users_who_code <- rep(user(), length(IDs_to_code))
+                   if(ID() %in% IDs){
+                     if(which(IDs == ID()) == length(IDs)){
+                       newID <- ID()
+                     } else {
+                       newID <- IDs[which(IDs == ID())+1]
+                     }
+                   } else {
+                     IDs <- dbGetQuery(con, paste0("select `ID`, `completed` from ", data_set_name, " where `coded_by` = ?"),
+                                                           list(user()))$ID
+                     newID <- IDs[which(IDs == ID())+1]
+                     if(is.na(newID)){
+                       newID <- sample(IDs_to_code[which(users_who_code == user())][1])
+                     }
+                   }
                  }
-                 if(ID() %in% IDs_to_code & ID() != IDs_to_code[length(IDs_to_code)]){
-                   newID <- IDs_to_code[which(IDs_to_code == ID())+1]
-                 } else {
-                   newID <- IDs_to_code[length(IDs_to_code)]
-                 }
-                 if(is.na(newID)){
-                   newID <- ID()
-                 }
+                 message(newID)
+                 # # # IF RANDOM SELECTION
+                 # # Not really done - just assigned!
+                 # done <- dbGetQuery(con, paste0("select `ID`, `completed` from ", data_set_name, " where `coded_by` = ?"),
+                 #                    list(user()))
+                 # if("" %in% done$ID){
+                 #   dbExecute(con, paste0(" DELETE FROM ", data_set_name, " WHERE `ID` = ''"))
+                 #   done <- done[which(done$ID != ""),]
+                 # }
+                 # 
+                 # if(!is.na(ID())){
+                 #   if(ID() %in% done$ID){
+                 #     if(which(done$ID == ID()) != nrow(done)){
+                 #       newID <- done$ID[which(done$ID == ID())+1]
+                 #     }
+                 #   }
+                 # }
+                 # if(is.na(newID)){
+                 #   # List IDs that are yet to be coded
+                 #   IDs <- IDs_to_code[which(!IDs_to_code %in% dbGetQuery(con, "SELECT `ID` FROM ", data_set_name, "")$ID)]
+                 #   if(length(IDs) == 0){
+                 #     IDs <- IDs_to_code[which(!IDs_to_code %in% dbGetQuery(con, "SELECT `ID` FROM ", data_set_name, " where `completed` = 1")$ID)]
+                 #   }
+                 #   
+                 #   # Pick one if the user has more cases left to code
+                 #   if(nrow(done) < users$n_cases[which(users$username == user())]){
+                 #     newID <- sample(IDs, 1)
+                 #   } else {
+                 #     if(all(done$completed == 1)){
+                 #       showNotification(paste("You have completed all your", 
+                 #                              users$n_cases[which(users$username == user())],
+                 #                              "assigned cases!"), duration=NULL, type="warning")
+                 #       newID <- sample(IDs, 1)
+                 #     } else {
+                 #       newID <- sample(done$ID[which(done$completed == 0)], 1)
+                 #     }
+                 #   }
+                 # }
+                 # # message("To ",newID)
+                 # 
+                 # 
+                 # # isolate({
+                 # #   updateTextInput(session, "ID", value=newID)
+                 # # })
                  
-                 # message("To ",newID)
-                 
-                 isolate({
-                   updateTextInput(session, "ID", value=newID)
-                 })
-                 clicktime <<- Sys.time()
+                 clicktime <<- update_all(session, ID = newID, user=user())
                })
   
   observeEvent(input$previouscase,
                {
-                 # Update ECLI code
-                 if(user() %in% users_who_code){
-                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
+                 newID <- ID()
+                 IDs <- IDs_to_code[which(users_who_code == user())]
+                 
+                 if(is.na(ID())){
+                   newID <- IDs[1]
                  } else {
-                   IDs_to_code <- unique(IDs_to_code)
-                   users_who_code <- rep(user(), length(IDs_to_code))
-                 }
-                 if(ID() %in% IDs_to_code & ID() != IDs_to_code[1]){
-                   newID <- IDs_to_code[which(IDs_to_code == ID())-1]
-                 } else {
-                   newID <- IDs_to_code[1]
-                 }
-                 if(is.na(newID)){
-                   newID <- ID()
+                   if(ID() %in% IDs){
+                     if(which(IDs == ID()) == 1){
+                       newID <- ID()
+                     } else {
+                       newID <- IDs[which(IDs == ID())-1]
+                     }
+                   } else {
+                     IDs <- dbGetQuery(con, paste0("select `ID`, `completed` from ", data_set_name, " where `coded_by` = ?"),
+                                         list(user()))$ID
+                     newID <- IDs[which(IDs == ID())-1]
+                     if(length(newID) == 0){
+                       newID <- sample(IDs_to_code[which(users_who_code == user())][1])
+                     }
+                   }
                  }
                  
-                 isolate({
-                   updateTextInput(session, "ID", value=newID)
-                 })
-                 clicktime <<- Sys.time()
+                 # # # From random pool:
+                 # # Not really done - just assigned!
+                 # done <- dbGetQuery(con, paste0("select `ID`, `completed` from ", data_set_name, " where `coded_by` = ?"),
+                 #                    list(user()))
+                 # if("" %in% done$ID){
+                 #   dbExecute(con, paste0(" DELETE FROM ", data_set_name, " WHERE `ID` = ''"))
+                 #   done <- done[which(done$ID != ""),]
+                 # }
+                 # 
+                 # if(!is.na(ID())){
+                 #   if(ID() %in% done$ID){
+                 #     if(which(done$ID == ID()) != 1){
+                 #       newID <- done$ID[which(done$ID == ID())-1]
+                 #     }
+                 #   }
+                 # }
+                 # 
+                 # # isolate({
+                 # #   updateTextInput(session, "ID", value=newID)
+                 # # })
+                 
+                 clicktime <<- update_all(session, ID = newID, user=user())
                })
   
-  observeEvent(input$randomcase,
-               {
-                 data_by_user <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE coded_by = '", user(), "'"))
-                 
-                 if(user() %in% users_who_code){
-                   IDs_to_code <- IDs_to_code[which(users_who_code == user())]
-                   IDs_to_code <- IDs_to_code[which(!IDs_to_code %in% data_by_user[which(!apply(data_by_user, 1, function(y) "NA" %in% y)),"ID"])]
-                 } else {
-                   IDs_to_code <- unique(IDs_to_code)
-                   users_who_code <- rep(user(), length(IDs_to_code))
-                 }
-                 
-                 newID <- sample(IDs_to_code,1)
-                 
-                 if(is.na(newID)){
-                   newID <- ID()
-                 }
-                 
-                 isolate({
-                   updateTextInput(session, "ID", value=newID)
-                 })
-                 
-                 clicktime <<- Sys.time()
-                 
-                 
-               })
   
+  observeEvent(input$update,{
+    
+    
+    if(!is.na(ID()) & !is.na(user())){
+      clicktime <<- update_all(session, ID = ID(), user = user())
+    }
+    
+    clicktime <<- Sys.time()
+  })
   observeEvent(input$statistics,
                {
                  if(user() != "Sign in"){
@@ -988,7 +1033,7 @@ server <- function(input, output, session) {
                  }
                  else {
                    coded <- dbGetQuery(con, paste0("SELECT ",
-                                                   paste("`", c("ID", "date_coded_text", "coded_by", "Not_applicable", unique(variable_list$variable)),"`", collapse=",", sep=""),
+                                                   paste("`", c("ID", "date_updated", "coded_by", unique(variable_list$variable)),"`", collapse=",", sep=""),
                                                    " FROM ", data_set_name))
                    
                    
@@ -1017,9 +1062,6 @@ server <- function(input, output, session) {
                                         "hours since you started working"),
                                   duration=10)
                })
-  
-  
-  
   
   
   # sign out on exit ####

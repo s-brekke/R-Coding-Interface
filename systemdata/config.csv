@@ -1,6 +1,6 @@
 "setting","value","description"
 "sql_type","SQLite","SQLite or MySQL"
-"data_set_name","judges","Name of the data table"
+"data_set_name","handcoding","Name of the data table"
 "data_base_name","database","Name of the data base"
 "showguide","TRUE","Show code guide – TRUE or FALSE"
 "host",,"If MySQL or MariaDB: Host name"
