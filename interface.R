@@ -187,7 +187,7 @@ radio_survey <- function(n,
              style="all:unset")
     },
     
-    if(showguide){
+    if(showguide & !is.na(variable_list$guide[which(variable_list$variable== vars[n])][1])){
       tags$p(
         tags$b(paste("Code guide for ", variable_list$variable_name[which(variable_list$variable== vars[n])][1], ": ", sep="")),  tags$br(),
         tags$i(variable_list$guide[which(variable_list$variable== vars[n])][1])
@@ -203,9 +203,15 @@ radio_survey <- function(n,
       NULL
     },
     if(variable_list$value[which(variable_list$variable == vars[n])[1]] == "text"){
-      textAreaInput(vars[n], 
-                    variable_list$variable_name[which(variable_list$variable== vars[n])][1],
-                    placeholder = variable_list$description[which(variable_list$variable== vars[n])][1])
+      if(grepl("short", variable_list$interpretation[which(variable_list$variable == vars[n])[1]])){
+        textInput(vars[n], 
+                  variable_list$variable_name[which(variable_list$variable== vars[n])][1],
+                  placeholder = variable_list$description[which(variable_list$variable== vars[n])][1])
+      } else {
+        textAreaInput(vars[n], 
+                      variable_list$variable_name[which(variable_list$variable== vars[n])][1],
+                      placeholder = variable_list$description[which(variable_list$variable== vars[n])][1])
+      }
     } else {
       
       if(grepl("multichoice", variable_list$interpretation[which(variable_list$variable == vars[n])[1]])){
@@ -357,7 +363,7 @@ user_new <- NA
 ui <- fluidPage(
   # Application title
   tags$a(name="top"),
-  titlePanel("Free movement of persons"),
+  titlePanel("Coding interface"),
   
   # Sidebar with case info
   sidebarLayout(
@@ -670,8 +676,11 @@ server <- function(input, output, session) {
       lastID2 <- "missing"
     }
     # message(3)
+    if(ID() != ""){
     outputdata <- dbGetQuery(con, paste0("SELECT * FROM ", data_set_name, " WHERE `ID` = '", ID(),  "' AND `coded_by` = '", user(), "'"))
-    
+    } else {
+      outputdata <- as.data.frame(NA)
+    }
     fleeting_data_line <<- outputdata #this solution is UGLY - but helps load optional fields
     
     # message("ID: ", ID())
@@ -844,7 +853,9 @@ server <- function(input, output, session) {
   })
   
   output$last_update <- renderText({
-    paste0(dbGetQuery(con, paste0("SELECT `date_updated` FROM ", data_set_name, " WHERE `ID` = '", ID(), "' AND `coded_by` = '", user(), "'")))
+    message(data_set_name)
+    
+    paste0(ifelse(ID()=="", "Not available", dbGetQuery(con, paste0("SELECT `date_updated` FROM ", data_set_name, " WHERE `ID` = '", ID(), "' AND `coded_by` = '", user(), "'"))))
   })
   
   output$published <- renderText({

@@ -24,6 +24,16 @@ A list of ID numbers and the user names of the users who these cases are assigne
 #### variable_list.xlsx / variable_list.csv
 A list of variable names, descriptions, and possible values.
 
+`variable`: Name of variable (in database)
+`variable_name`: Name of variable (for human eyes)
+`value`: Potential values - one per line
+`interpretation`: Optional description of the variable. R looks for certain keywords such as "multichoice"
+`description`: Description of the individual values, as they appear in the interface.
+`guide`: Code guide. Will appear above the variable if enabled.
+`text` Decide if a text field should be included for description. "yes" or "no", defaults to "no".
+`headline`: Section headline. Optional.
+
+
 ### Make changes to interface
 After updating the variable list, these changes must be reflected in *interface.R*.
 
@@ -58,7 +68,7 @@ You also need to install the following dependencies:
 ```R
 install.packages("shiny")
 install.packages("DBI")
-install.packages("readxl") # To read variable_list.xlsx 
+install.packages("readxl") # To read variable_list.xlsx
 install.packages("RSQLite") # For SQLite
 install.packages("RMariaDB") # For MariaDB
 ```
