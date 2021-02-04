@@ -2,7 +2,7 @@
 "var1","Variable 1","1","tags and comments","Variable 1 – Alternative 1","Code guide for var1","Headline above variable 1","yes"
 "var1",NA,"2",NA,"Variable 1 – Alternative 2",NA,NA,NA
 "var1",NA,"3",NA,"Variable 1 – Alternative 3",NA,NA,NA
-"var2","Variable 2","1",NA,"Variable 2 – Alternative 1","Code guide for var2",NA,"no"
+"var2","Variable 2","1","pre-filled","Variable 2 – Alternative 1","Code guide for var2",NA,"no"
 "var2",NA,"2",NA,"Variable 2 – Alternative 2",NA,NA,NA
 "var2",NA,"3",NA,"Variable 2 – Alternative 3",NA,NA,NA
 "text_var_one","Text variable","text",NA,"Description: text field","Code guide text field",NA,NA

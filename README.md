@@ -59,6 +59,17 @@ set up a data base separately before connecting. This data base needs to contain
 3. date_updated: `DATETIME`.
 4. completed: `BOOL`, preferably `DEFAULT 0`
 
+It could look something like this:
+
+```SQL
+create table data_table_name (
+  `ID` TEXT,
+  `coded_by` TEXT,
+  `date_updated` DATETIME default now(),
+  `completed` BOOL default 0
+);
+```
+
 
 ### Run
 Make sure the working directory is the home folder of the interface before running.
