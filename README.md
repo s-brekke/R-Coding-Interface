@@ -1,4 +1,4 @@
-# R Shiny Coding Interface
+# R Coding Interface
 
 R Shiny based hand coding interface. Designed for CJEU related uses, but generalized to work for a number of scenarios.
 
